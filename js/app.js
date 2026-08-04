@@ -6,6 +6,8 @@ const state = {
   items: [],
   dashboard: null,
   selectedItems: [],
+  editItems: [],
+  editOrderId: null,
   orderFilter: 'Alle',
   expandedOrderId: null,
   editingProductSku: null,
@@ -340,7 +342,19 @@ function renderOrders() {
   list.querySelectorAll('.order-card').forEach(function (card) {
     card.addEventListener('click', function (ev) {
       if (ev.target.closest('.order-edit-panel')) return;
-      state.expandedOrderId = state.expandedOrderId === card.dataset.id ? null : card.dataset.id;
+      const id = card.dataset.id;
+      if (state.expandedOrderId === id) {
+        state.expandedOrderId = null;
+        state.editOrderId = null;
+        state.editItems = [];
+      } else {
+        const order = state.orders.filter(function (o) { return o.OrderID === id; })[0];
+        state.expandedOrderId = id;
+        state.editOrderId = id;
+        state.editItems = itemsForOrder(id).map(function (it) {
+          return { sku: it.SKU, naam: it.Naam, prijs: Number(it.PrijsPerStuk), aantal: Number(it.Aantal) };
+        });
+      }
       renderOrders();
     });
   });
@@ -348,9 +362,85 @@ function renderOrders() {
   bindOrderEditPanels();
 }
 
+function renderEditSelectedItemsHtml() {
+  return (
+    state.editItems
+      .map(function (it, idx) {
+        return (
+          '<div class="selected-item">' +
+          '<span class="name">' + escapeHtml(it.naam) + '</span>' +
+          '<input type="number" min="1" value="' + it.aantal + '" data-idx="' + idx + '" class="edit-qty-input">' +
+          '<span class="price">&euro;' + (it.prijs * it.aantal).toFixed(2) + '</span>' +
+          '<button type="button" class="remove edit-remove-item" data-idx="' + idx + '">&times;</button>' +
+          '</div>'
+        );
+      })
+      .join('') || '<div class="empty-state">Geen producten in deze order.</div>'
+  );
+}
+
+function refreshEditPanel(panel) {
+  panel.querySelector('.edit-selected-items').innerHTML = renderEditSelectedItemsHtml();
+  const subtotaal = state.editItems.reduce(function (s, it) { return s + it.prijs * it.aantal; }, 0);
+  const korting = Number(panel.querySelector('.edit-korting').value) || 0;
+  const totaal = Math.max(subtotaal - korting, 0);
+  panel.querySelector('.edit-total').textContent = '\u20ac' + totaal.toFixed(2);
+  bindEditItemRowEvents(panel);
+}
+
+function bindEditItemRowEvents(panel) {
+  panel.querySelectorAll('.edit-qty-input').forEach(function (input) {
+    input.addEventListener('change', function () {
+      const idx = Number(input.dataset.idx);
+      state.editItems[idx].aantal = Math.max(1, Number(input.value) || 1);
+      refreshEditPanel(panel);
+    });
+  });
+  panel.querySelectorAll('.edit-remove-item').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      state.editItems.splice(Number(btn.dataset.idx), 1);
+      refreshEditPanel(panel);
+    });
+  });
+}
+
 function renderOrderEditPanel(o) {
+  const itemsHtml = state.editItems
+    .map(function (it, idx) {
+      return (
+        '<div class="selected-item">' +
+        '<span class="name">' + escapeHtml(it.naam) + '</span>' +
+        '<input type="number" min="1" value="' + it.aantal + '" data-idx="' + idx + '" class="edit-qty-input">' +
+        '<span class="price">&euro;' + (it.prijs * it.aantal).toFixed(2) + '</span>' +
+        '<button type="button" class="remove edit-remove-item" data-idx="' + idx + '">&times;</button>' +
+        '</div>'
+      );
+    })
+    .join('') || '<div class="empty-state">Geen producten in deze order.</div>';
+
+  const subtotaal = state.editItems.reduce(function (s, it) { return s + it.prijs * it.aantal; }, 0);
+  const korting = Number(o.Korting) || 0;
+  const totaal = Math.max(subtotaal - korting, 0);
+
   return (
     '<div class="order-edit-panel" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">' +
+    '<label>Voornaam</label><input type="text" class="edit-voornaam" value="' + escapeAttr(o.Voornaam) + '">' +
+    '<label>Achternaam</label><input type="text" class="edit-achternaam" value="' + escapeAttr(o.Achternaam) + '">' +
+    '<label>Straat + huisnr</label><input type="text" class="edit-straat" value="' + escapeAttr(o.Straat || '') + '">' +
+    '<div class="field-row">' +
+    '<div><label>Postcode</label><input type="text" class="edit-postcode" value="' + escapeAttr(o.Postcode || '') + '"></div>' +
+    '<div><label>Woonplaats</label><input type="text" class="edit-plaats" value="' + escapeAttr(o.Plaats || '') + '"></div>' +
+    '</div>' +
+
+    '<label>Producten</label>' +
+    '<input type="text" class="edit-product-search" placeholder="Zoek product om toe te voegen...">' +
+    '<div class="product-list edit-product-list"></div>' +
+    '<div class="selected-items edit-selected-items">' + itemsHtml + '</div>' +
+
+    '<label>Korting (&euro;)</label>' +
+    '<input type="number" step="0.01" min="0" class="edit-korting" value="' + korting + '">' +
+    '<div class="total-row"><span>Totaal</span><span class="edit-total">&euro;' + totaal.toFixed(2) + '</span></div>' +
+
     '<label>Status</label>' +
     '<div class="segmented" data-order="' + escapeAttr(o.OrderID) + '">' +
     ['Nieuw', 'Verzonden', 'Afgerond'].map(function (s) {
@@ -368,10 +458,68 @@ function renderOrderEditPanel(o) {
   );
 }
 
+function renderEditProductPicker(panel, query) {
+  const list = panel.querySelector('.edit-product-list');
+  const q = (query || '').toLowerCase();
+  const filtered = state.products
+    .filter(function (p) { return p.Actief; })
+    .filter(function (p) {
+      return !q || (p.Naam + ' ' + p.SKU + ' ' + p.Categorie).toLowerCase().indexOf(q) !== -1;
+    });
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state">Geen producten gevonden.</div>';
+    return;
+  }
+
+  list.innerHTML = filtered
+    .map(function (p) {
+      const low = Number(p.Voorraad) <= 3;
+      return (
+        '<div class="product-list-item" data-sku="' + escapeAttr(p.SKU) + '">' +
+        '<div><strong>' + escapeHtml(p.Naam) + '</strong>' +
+        '<small>' + escapeHtml(p.Categorie || '') + ' &middot; &euro;' + Number(p.Prijs).toFixed(2) +
+        ' &middot; <span class="' + (low ? 'stock-low' : '') + '">voorraad: ' + p.Voorraad + '</span></small></div>' +
+        '<span>+</span></div>'
+      );
+    })
+    .join('');
+
+  list.querySelectorAll('.product-list-item').forEach(function (el) {
+    el.addEventListener('click', function () {
+      addProductToEdit(el.dataset.sku);
+      refreshEditPanel(panel);
+    });
+  });
+}
+
+function addProductToEdit(sku) {
+  const product = state.products.filter(function (p) { return p.SKU === sku; })[0];
+  if (!product) return;
+  const existing = state.editItems.filter(function (i) { return i.sku === sku; })[0];
+  if (existing) {
+    existing.aantal++;
+  } else {
+    state.editItems.push({ sku: sku, naam: product.Naam, prijs: Number(product.Prijs), aantal: 1 });
+  }
+}
+
 function bindOrderEditPanels() {
   document.querySelectorAll('.order-edit-panel').forEach(function (panel) {
     const card = panel.closest('.order-card');
     const orderId = card.dataset.id;
+
+    renderEditProductPicker(panel, '');
+
+    panel.querySelector('.edit-product-search').addEventListener('input', function (e) {
+      renderEditProductPicker(panel, e.target.value);
+    });
+
+    bindEditItemRowEvents(panel);
+
+    panel.querySelector('.edit-korting').addEventListener('input', function () {
+      refreshEditPanel(panel);
+    });
 
     panel.querySelectorAll('.segmented button').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -384,12 +532,34 @@ function bindOrderEditPanels() {
       const status = panel.querySelector('.segmented button.active').dataset.value;
       const betaald = panel.querySelector('.edit-betaald').checked;
       const notitie = panel.querySelector('.edit-notitie').value;
+      const korting = Number(panel.querySelector('.edit-korting').value) || 0;
+
+      if (!state.editItems.length) {
+        toast('Een order heeft minstens 1 product nodig.', true);
+        return;
+      }
 
       showSpinner('Opslaan...');
-      callApi('updateOrder', { orderId: orderId, Status: status, Betaald: betaald, Notitie: notitie })
+      callApi('updateOrder', {
+        orderId: orderId,
+        Status: status,
+        Betaald: betaald,
+        Notitie: notitie,
+        Voornaam: panel.querySelector('.edit-voornaam').value.trim(),
+        Achternaam: panel.querySelector('.edit-achternaam').value.trim(),
+        Straat: panel.querySelector('.edit-straat').value.trim(),
+        Postcode: panel.querySelector('.edit-postcode').value.trim(),
+        Plaats: panel.querySelector('.edit-plaats').value.trim(),
+        korting: korting,
+        items: state.editItems.map(function (it) {
+          return { sku: it.sku, naam: it.naam, prijs: it.prijs, aantal: it.aantal };
+        }),
+      })
         .then(function () {
           toast('Order bijgewerkt.');
           state.expandedOrderId = null;
+          state.editOrderId = null;
+          state.editItems = [];
           loadBootstrap();
         })
         .catch(function (err) { toast(err.message, true); })
@@ -510,8 +680,8 @@ function submitNewProduct(ev) {
     voorraad: Number(document.getElementById('np-voorraad').value) || 0,
     actief: true,
   };
-  if (!payload.sku || !payload.naam) {
-    toast('Vul minimaal SKU en naam in.', true);
+  if (!payload.naam) {
+    toast('Vul minimaal een naam in.', true);
     return;
   }
   showSpinner('Product toevoegen...');
@@ -545,7 +715,12 @@ function renderDashboard() {
     ? d.lowStock.map(function (p) { return '<div class="bestseller-row"><span>' + escapeHtml(p.naam) + '</span><span class="stock-low">nog ' + p.voorraad + '</span></div>'; }).join('')
     : '<div class="empty-state">Alle voorraad op peil.</div>';
 
+  const dupWarning = (d.duplicateSkus && d.duplicateSkus.length)
+    ? '<div class="card" style="border-color:var(--orange-dark);"><h3 style="color:var(--orange-dark);">Let op: dubbele SKU\'s</h3><p>Deze SKU-waarden komen meerdere keren voor in je Producten-tabblad: <strong>' + d.duplicateSkus.map(escapeHtml).join(', ') + '</strong>. Producten met dezelfde SKU worden door het systeem als \u00e9\u00e9n product behandeld. Maak elke SKU uniek.</p></div>'
+    : '';
+
   wrap.innerHTML =
+    dupWarning +
     '<div class="stat-grid">' +
     '<div class="stat-card"><div class="value">&euro;' + d.omzetTotaal.toFixed(0) + '</div><div class="label">Omzet totaal</div></div>' +
     '<div class="stat-card"><div class="value">&euro;' + d.omzetMaand.toFixed(0) + '</div><div class="label">Omzet deze maand</div></div>' +
