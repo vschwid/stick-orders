@@ -8,7 +8,8 @@ const state = {
   selectedItems: [],
   editItems: [],
   editOrderId: null,
-  orderFilter: 'Alle',
+  orderFilter: 'Open',
+  orderSort: { field: 'datum', dir: 'desc' },
   orderSearch: '',
   editingProductSku: null,
 };
@@ -176,7 +177,6 @@ function showLogin() {
 function showApp() {
   document.getElementById('login-view').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
-  document.getElementById('user-name').textContent = state.user.name.split(' ')[0];
   document.getElementById('user-avatar').src = state.user.picture;
   switchView('new-order');
 }
@@ -243,7 +243,7 @@ function renderProductPicker(query) {
         '<div><strong>' + escapeHtml(p.Naam) + '</strong>' +
         '<small>' + escapeHtml(p.Categorie || '') + ' &middot; &euro;' + Number(p.Prijs).toFixed(2) +
         ' &middot; <span class="' + (low ? 'stock-low' : '') + '">voorraad: ' + p.Voorraad + '</span></small></div>' +
-        '<span>+</span></div>'
+        '<span class="material-symbols-outlined" style="font-size:18px;">add</span></div>'
       );
     })
     .join('');
@@ -280,7 +280,7 @@ function renderSelectedItems() {
         '<span class="name">' + escapeHtml(it.naam) + '</span>' +
         '<input type="number" min="1" value="' + it.aantal + '" data-idx="' + idx + '" class="qty-input">' +
         '<span class="price">&euro;' + (it.prijs * it.aantal).toFixed(2) + '</span>' +
-        '<button class="remove" data-idx="' + idx + '">&times;</button>' +
+        '<button class="remove" data-idx="' + idx + '"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>' +
         '</div>'
       );
     })
@@ -318,14 +318,50 @@ function setStatusSegment(value) {
 
 function getActiveStatus() {
   const active = document.querySelector('#status-segmented button.active');
-  return active ? active.dataset.value : 'Nieuw';
+  return active ? active.dataset.value : 'Open';
+}
+
+function normalizePostcode(pc) {
+  return String(pc || '').replace(/\s+/g, '').toUpperCase();
+}
+
+function isValidPostcode(pc) {
+  return /^[1-9][0-9]{3}[A-Z]{2}$/.test(normalizePostcode(pc));
+}
+
+function tryAutoFillAddress() {
+  const pc = normalizePostcode(document.getElementById('input-postcode').value);
+  const huisnr = document.getElementById('input-huisnummer').value.trim();
+  if (!isValidPostcode(pc) || !huisnr) return;
+
+  const params = new URLSearchParams();
+  params.append('fq', 'postcode:' + pc);
+  params.append('fq', 'huisnummer:' + huisnr);
+  params.append('fq', 'type:adres');
+  params.append('fl', 'straatnaam,woonplaatsnaam');
+  params.append('rows', '1');
+
+  fetch('https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?' + params.toString())
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      const doc = data.response && data.response.docs && data.response.docs[0];
+      if (!doc) {
+        toast('Adres niet gevonden, vul handmatig in.', true);
+        return;
+      }
+      document.getElementById('input-straat').value = doc.straatnaam + ' ' + huisnr;
+      document.getElementById('input-plaats').value = doc.woonplaatsnaam;
+    })
+    .catch(function () {
+      // stil falen: adres blijft gewoon handmatig invulbaar
+    });
 }
 
 function resetOrderForm() {
   document.getElementById('form-new-order').reset();
   state.selectedItems = [];
   renderSelectedItems();
-  setStatusSegment('Nieuw');
+  setStatusSegment('Open');
   document.getElementById('toggle-betaald').checked = false;
   renderProductPicker('');
 }
@@ -371,19 +407,17 @@ function itemsForOrder(orderId) {
   return state.items.filter(function (i) { return i.OrderID === orderId; });
 }
 
-function badgeClassForStatus(status) {
-  if (status === 'Klaar voor verzending' || status === 'Verzonden') return 'badge-klaar';
-  if (status === 'Afgerond') return 'badge-afgerond';
-  return 'badge-nieuw';
-}
-
-function badgeClassForBetaald(betaald) {
-  return betaald ? 'badge-betaald' : 'badge-onbetaald';
-}
-
-function shortStatusLabel(status) {
-  if (status === 'Klaar voor verzending') return 'Klaar';
+function normalizeStatus(status) {
+  if (status === 'Nieuw') return 'Open';
+  if (status === 'Klaar voor verzending' || status === 'Verzonden') return 'Verzenden';
   return status;
+}
+
+function badgeClassForStatus(status) {
+  const s = normalizeStatus(status);
+  if (s === 'Verzenden') return 'badge-klaar';
+  if (s === 'Afgerond') return 'badge-afgerond';
+  return 'badge-nieuw';
 }
 
 function initialsFor(o) {
@@ -392,19 +426,56 @@ function initialsFor(o) {
   return (a + b).toUpperCase() || '?';
 }
 
+function compareOrders(a, b, field) {
+  if (field === 'naam') {
+    const an = (a.Voornaam + ' ' + a.Achternaam).toLowerCase();
+    const bn = (b.Voornaam + ' ' + b.Achternaam).toLowerCase();
+    return an < bn ? -1 : an > bn ? 1 : 0;
+  }
+  if (field === 'datum') {
+    return new Date(a.Datum) - new Date(b.Datum);
+  }
+  if (field === 'status') {
+    const as = normalizeStatus(a.Status) || '';
+    const bs = normalizeStatus(b.Status) || '';
+    return as < bs ? -1 : as > bs ? 1 : 0;
+  }
+  if (field === 'bedrag') {
+    return Number(a.Totaal) - Number(b.Totaal);
+  }
+  return 0;
+}
+
+function renderOrdersTableHeader() {
+  document.querySelectorAll('.order-col').forEach(function (btn) {
+    const isActive = btn.dataset.field === state.orderSort.field;
+    btn.classList.toggle('sorted', isActive);
+    const icon = btn.querySelector('.sort-icon');
+    icon.textContent = isActive ? (state.orderSort.dir === 'asc' ? 'arrow_upward' : 'arrow_downward') : '';
+  });
+}
+
 function renderOrders() {
   const list = document.getElementById('orders-list');
   const q = (state.orderSearch || '').toLowerCase();
 
   const filtered = state.orders
     .filter(function (o) {
-      return state.orderFilter === 'Alle' || o.Status === state.orderFilter;
+      const s = normalizeStatus(o.Status);
+      if (state.orderFilter === 'Afgerond') return s === 'Afgerond';
+      return s === state.orderFilter;
     })
     .filter(function (o) {
       if (!q) return true;
       const haystack = (o.Voornaam + ' ' + o.Achternaam + ' ' + (o.Notitie || '')).toLowerCase();
       return haystack.indexOf(q) !== -1;
+    })
+    .sort(function (a, b) {
+      const dir = state.orderSort.dir === 'asc' ? 1 : -1;
+      return compareOrders(a, b, state.orderSort.field) * dir;
     });
+
+  renderOrdersTableHeader();
 
   if (!filtered.length) {
     list.innerHTML = '<div class="empty-state">Geen orders gevonden.</div>';
@@ -417,16 +488,15 @@ function renderOrders() {
       const itemCount = items.reduce(function (s, i) { return s + (Number(i.Aantal) || 0); }, 0);
       return (
         '<div class="order-row" data-id="' + escapeAttr(o.OrderID) + '">' +
-        '<div class="order-row__avatar">' + escapeHtml(initialsFor(o)) + '</div>' +
-        '<div class="order-row__main">' +
         '<div class="order-row__name">' + escapeHtml(o.Voornaam) + ' ' + escapeHtml(o.Achternaam) + '</div>' +
-        '<div class="order-row__meta">' + formatDate(o.Datum) + ' &middot; ' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + '</div>' +
-        '</div>' +
+        '<div class="order-row__bottom">' +
+        '<span class="order-row__meta">' + formatDate(o.Datum) + ' &middot; ' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + '</span>' +
         '<div class="order-row__side">' +
-        '<span class="badge ' + badgeClassForStatus(o.Status) + '">' + escapeHtml(shortStatusLabel(o.Status)) + '</span>' +
-        '<span class="badge ' + badgeClassForBetaald(o.Betaald) + '">' + (o.Betaald ? 'Betaald' : 'Niet betaald') + '</span>' +
+        '<span class="badge ' + badgeClassForStatus(o.Status) + '">' + escapeHtml(normalizeStatus(o.Status)) + '</span>' +
+        '<span class="badge-paid-icon ' + (o.Betaald ? 'is-paid' : 'is-unpaid') + '"><span class="material-symbols-outlined">euro</span>' + (o.Betaald ? 'Ja' : 'Nee') + '</span>' +
         '<span class="order-row__amount">&euro;' + Number(o.Totaal).toFixed(2) + '</span>' +
-        '<span class="order-row__chevron">&rsaquo;</span>' +
+        '<span class="material-symbols-outlined order-row__chevron">chevron_right</span>' +
+        '</div>' +
         '</div>' +
         '</div>'
       );
@@ -465,7 +535,7 @@ function renderEditSelectedItemsHtml() {
           '<span class="name">' + escapeHtml(it.naam) + '</span>' +
           '<input type="number" min="1" value="' + it.aantal + '" data-idx="' + idx + '" class="edit-qty-input">' +
           '<span class="price">&euro;' + (it.prijs * it.aantal).toFixed(2) + '</span>' +
-          '<button type="button" class="remove edit-remove-item" data-idx="' + idx + '">&times;</button>' +
+          '<button type="button" class="remove edit-remove-item" data-idx="' + idx + '"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>' +
           '</div>'
         );
       })
@@ -542,8 +612,8 @@ function renderOrderDetailPage() {
     '<div class="card">' +
     '<h3>Status</h3>' +
     '<div class="segmented edit-status-segmented">' +
-    ['Nieuw', 'Klaar voor verzending', 'Afgerond'].map(function (s) {
-      return '<button type="button" data-value="' + s + '" class="' + (o.Status === s ? 'active' : '') + '">' + s + '</button>';
+    ['Open', 'Verzenden', 'Afgerond'].map(function (s) {
+      return '<button type="button" data-value="' + s + '" class="' + (normalizeStatus(o.Status) === s ? 'active' : '') + '">' + s + '</button>';
     }).join('') +
     '</div>' +
     '<div class="toggle-row">' +
@@ -583,9 +653,9 @@ function bindOrderDetailEvents(o) {
   content.querySelector('.edit-betaald').addEventListener('change', function (e) {
     if (e.target.checked) {
       const active = content.querySelector('.edit-status-segmented button.active');
-      if (active && active.dataset.value === 'Nieuw') {
+      if (active && active.dataset.value === 'Open') {
         content.querySelectorAll('.edit-status-segmented button').forEach(function (x) {
-          x.classList.toggle('active', x.dataset.value === 'Klaar voor verzending');
+          x.classList.toggle('active', x.dataset.value === 'Verzenden');
         });
       }
     }
@@ -650,7 +720,7 @@ function renderEditProductPicker(content, query) {
         '<div><strong>' + escapeHtml(p.Naam) + '</strong>' +
         '<small>' + escapeHtml(p.Categorie || '') + ' &middot; &euro;' + Number(p.Prijs).toFixed(2) +
         ' &middot; <span class="' + (low ? 'stock-low' : '') + '">voorraad: ' + p.Voorraad + '</span></small></div>' +
-        '<span>+</span></div>'
+        '<span class="material-symbols-outlined" style="font-size:18px;">add</span></div>'
       );
     })
     .join('');
@@ -847,7 +917,7 @@ function renderDashboard() {
     '<div class="stat-card"><div class="value">&euro;' + d.omzetTotaal.toFixed(0) + '</div><div class="label">Omzet totaal</div></div>' +
     '<div class="stat-card"><div class="value">&euro;' + d.omzetMaand.toFixed(0) + '</div><div class="label">Omzet deze maand</div></div>' +
     '<div class="stat-card"><div class="value">' + d.ordersMaand + '</div><div class="label">Orders deze maand</div></div>' +
-    '<div class="stat-card"><div class="value">' + (d.statusCount['Klaar voor verzending'] || 0) + '</div><div class="label">Klaar om te verzenden</div></div>' +
+    '<div class="stat-card"><div class="value">' + (d.statusCount['Verzenden'] || 0) + '</div><div class="label">Te verzenden</div></div>' +
     '</div>' +
     '<div class="card"><h3>Bestsellers</h3>' + bestsellersHtml + '</div>' +
     '<div class="card"><h3>Voorraad bijna op</h3>' + lowStockHtml + '</div>';
@@ -893,12 +963,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.getElementById('input-korting').addEventListener('input', updateTotal);
 
+  document.getElementById('input-postcode').addEventListener('blur', tryAutoFillAddress);
+  document.getElementById('input-huisnummer').addEventListener('blur', tryAutoFillAddress);
+
   document.querySelectorAll('#status-segmented button').forEach(function (b) {
     b.addEventListener('click', function () { setStatusSegment(b.dataset.value); });
   });
 
   document.querySelectorAll('#order-filter-tabs button').forEach(function (b) {
     b.addEventListener('click', function () { setOrderFilter(b.dataset.value); });
+  });
+
+  document.querySelectorAll('.order-col').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const field = btn.dataset.field;
+      if (state.orderSort.field === field) {
+        state.orderSort.dir = state.orderSort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.orderSort.field = field;
+        state.orderSort.dir = 'asc';
+      }
+      renderOrders();
+    });
   });
 
   document.getElementById('order-search').addEventListener('input', function (e) {
@@ -912,7 +998,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('toggle-betaald').addEventListener('change', function (e) {
     if (e.target.checked) {
       const active = document.querySelector('#status-segmented button.active');
-      if (active && active.dataset.value === 'Nieuw') setStatusSegment('Klaar voor verzending');
+      if (active && active.dataset.value === 'Open') setStatusSegment('Verzenden');
     }
   });
 });

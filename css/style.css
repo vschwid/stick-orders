@@ -85,7 +85,7 @@ a { color: var(--rust-dark); }
   inset: 0;
   opacity: 0.5;
   pointer-events: none;
-  background-image: url("assets/pattern.jpg");
+  background-image: url("../assets/pattern.jpg");
   background-size: 160px 226px;
   background-repeat: repeat;
 }
@@ -129,10 +129,10 @@ a { color: var(--rust-dark); }
 .user-chip {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: var(--bg);
   border-radius: 999px;
-  padding: 6px 12px 6px 6px;
+  padding: 6px;
   box-shadow: var(--shadow);
   font-size: 0.78rem;
   color: var(--brown);
@@ -150,8 +150,12 @@ a { color: var(--rust-dark); }
   color: var(--rust-dark);
   font-weight: 600;
   cursor: pointer;
-  padding: 0;
+  padding: 4px;
+  display: flex;
+  align-items: center;
 }
+
+.user-chip button .material-symbols-outlined { font-size: 20px; }
 
 main {
   padding: 16px 16px 8px;
@@ -383,10 +387,40 @@ textarea { resize: vertical; min-height: 60px; }
   margin-bottom: 14px;
 }
 
-.order-row {
+.orders-table-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  padding: 0 12px 8px;
+}
+
+.order-col {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--brown);
+  padding: 4px 2px;
+}
+
+.order-col .sort-icon { font-size: 15px; width: 15px; }
+.order-col.sorted { color: var(--rust-dark); }
+
+.order-col--naam { flex: 1; justify-content: flex-start; }
+.order-col--datum { width: 68px; justify-content: flex-start; }
+.order-col--status { width: 88px; justify-content: flex-start; }
+.order-col--bedrag { width: 56px; justify-content: flex-end; }
+
+.order-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
@@ -395,40 +429,26 @@ textarea { resize: vertical; min-height: 60px; }
 .order-row:last-child { border-bottom: none; }
 .order-row:active { background: var(--ochre-soft); }
 
-.order-row__avatar {
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--ochre-soft);
-  color: var(--brown-deep);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 0.8rem;
-}
-
-.order-row__main {
-  flex: 1;
-  min-width: 0;
-}
-
 .order-row__name {
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  color: var(--brown-deep);
+  width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.order-row__bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .order-row__meta {
   font-size: 0.74rem;
   color: var(--brown);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .order-row__side {
@@ -436,6 +456,7 @@ textarea { resize: vertical; min-height: 60px; }
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto;
 }
 
 .order-row__amount {
@@ -447,10 +468,23 @@ textarea { resize: vertical; min-height: 60px; }
   text-align: right;
 }
 
+.badge-paid-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.badge-paid-icon .material-symbols-outlined { font-size: 14px; }
+.badge-paid-icon.is-paid { background: var(--status-betaald-bg); color: var(--status-betaald-text); }
+.badge-paid-icon.is-unpaid { background: var(--status-onbetaald-bg); color: var(--status-onbetaald-text); }
+
 .order-row__chevron {
   color: var(--brown-soft);
-  font-size: 1rem;
-  font-family: var(--font-button);
+  font-size: 20px;
 }
 
 .detail-header {
@@ -619,3 +653,11 @@ textarea { resize: vertical; min-height: 60px; }
 }
 
 .hidden { display: none !important; }
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-size: 20px;
+  line-height: 1;
+  vertical-align: middle;
+  display: inline-block;
+}

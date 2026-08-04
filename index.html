@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#FEF8E4">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -38,8 +39,7 @@
       </div>
       <div class="user-chip">
         <img id="user-avatar" src="" alt="">
-        <span id="user-name"></span>
-        <button id="logout-btn" type="button">Uitloggen</button>
+        <button id="logout-btn" type="button" aria-label="Uitloggen"><span class="material-symbols-outlined">logout</span></button>
       </div>
     </div>
   </header>
@@ -54,12 +54,14 @@
             <div><label for="input-voornaam">Voornaam</label><input id="input-voornaam" type="text" required></div>
             <div><label for="input-achternaam">Achternaam</label><input id="input-achternaam" type="text" required></div>
           </div>
-          <label for="input-straat">Straat + huisnr</label>
-          <input id="input-straat" type="text">
           <div class="field-row">
-            <div><label for="input-postcode">Postcode</label><input id="input-postcode" type="text" placeholder="1234 AB"></div>
-            <div><label for="input-plaats">Woonplaats</label><input id="input-plaats" type="text"></div>
+            <div><label for="input-postcode">Postcode</label><input id="input-postcode" type="text" placeholder="1234 AB" autocomplete="postal-code"></div>
+            <div><label for="input-huisnummer">Huisnummer</label><input id="input-huisnummer" type="text" placeholder="12" inputmode="numeric"></div>
           </div>
+          <label for="input-straat">Straat + huisnr</label>
+          <input id="input-straat" type="text" placeholder="Wordt automatisch ingevuld">
+          <label for="input-plaats">Woonplaats</label>
+          <input id="input-plaats" type="text" placeholder="Wordt automatisch ingevuld">
         </div>
 
         <div class="card">
@@ -78,8 +80,8 @@
         <div class="card">
           <h2>Status</h2>
           <div id="status-segmented" class="segmented">
-            <button type="button" data-value="Nieuw" class="active">Nieuw</button>
-            <button type="button" data-value="Klaar voor verzending">Klaar voor verzending</button>
+            <button type="button" data-value="Open" class="active">Open</button>
+            <button type="button" data-value="Verzenden">Verzenden</button>
             <button type="button" data-value="Afgerond">Afgerond</button>
           </div>
           <div class="toggle-row">
@@ -97,17 +99,22 @@
     <section id="view-orders" class="view">
       <input id="order-search" class="product-search" type="text" placeholder="Zoek op naam of notitie...">
       <div id="order-filter-tabs" class="filter-tabs">
-        <button data-value="Alle" class="active">Alle</button>
-        <button data-value="Nieuw">Nieuw</button>
-        <button data-value="Klaar voor verzending">Klaar voor verzending</button>
+        <button data-value="Open" class="active">Open</button>
+        <button data-value="Verzenden">Verzenden</button>
         <button data-value="Afgerond">Afgerond</button>
+      </div>
+      <div id="orders-table-header" class="orders-table-header">
+        <button type="button" class="order-col order-col--naam" data-field="naam">Naam <span class="material-symbols-outlined sort-icon"></span></button>
+        <button type="button" class="order-col order-col--datum" data-field="datum">Datum <span class="material-symbols-outlined sort-icon"></span></button>
+        <button type="button" class="order-col order-col--status" data-field="status">Status <span class="material-symbols-outlined sort-icon"></span></button>
+        <button type="button" class="order-col order-col--bedrag" data-field="bedrag">Bedrag <span class="material-symbols-outlined sort-icon"></span></button>
       </div>
       <div id="orders-list" class="order-list"></div>
     </section>
 
     <section id="view-order-detail" class="view">
       <div class="detail-header">
-        <button id="order-detail-back" type="button" class="btn-ghost">&larr; Orders</button>
+        <button id="order-detail-back" type="button" class="btn-ghost"><span class="material-symbols-outlined" style="font-size:18px;">arrow_back</span> Orders</button>
         <button id="order-detail-delete" type="button" class="btn-ghost delete-order-btn">Verwijderen</button>
       </div>
       <div id="order-detail-content"></div>
@@ -141,10 +148,10 @@
   </main>
 
   <nav class="bottom-nav">
-    <button data-view="new-order" class="active"><span class="icon">✚</span>Nieuw</button>
-    <button data-view="orders"><span class="icon">📦</span>Orders</button>
-    <button data-view="products"><span class="icon">🏷️</span>Producten</button>
-    <button data-view="dashboard"><span class="icon">📊</span>Dashboard</button>
+    <button data-view="new-order" class="active"><span class="material-symbols-outlined icon">add</span>Nieuw</button>
+    <button data-view="orders"><span class="material-symbols-outlined icon">receipt_long</span>Orders</button>
+    <button data-view="products"><span class="material-symbols-outlined icon">sell</span>Producten</button>
+    <button data-view="dashboard"><span class="material-symbols-outlined icon">bar_chart</span>Dashboard</button>
   </nav>
 
   <div id="toast" class="toast"></div>
