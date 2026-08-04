@@ -37,6 +37,7 @@ function initGoogleLogin() {
   });
   attemptSilentLogin();
   scheduleSilentRefresh();
+  scheduleSilentSync();
 }
 
 function attemptSilentLogin() {
@@ -63,6 +64,41 @@ function scheduleSilentRefresh() {
       google.accounts.id.prompt();
     }
   }, 50 * 60 * 1000);
+}
+
+function scheduleSilentSync() {
+  setInterval(function () {
+    silentSync();
+  }, 45 * 1000);
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') silentSync();
+  });
+}
+
+function silentSync() {
+  if (!state.idToken) return;
+  callApi('bootstrap')
+    .then(function (data) {
+      state.products = (data.products || []).map(function (p) {
+        return Object.assign({}, p, { SKU: String(p.SKU) });
+      });
+      state.orders = (data.orders || []).map(function (o) {
+        return Object.assign({}, o, { OrderID: String(o.OrderID) });
+      });
+      state.items = (data.items || []).map(function (it) {
+        return Object.assign({}, it, { OrderID: String(it.OrderID), SKU: String(it.SKU) });
+      });
+      state.dashboard = data.dashboard || null;
+
+      const active = document.querySelector('.view.active');
+      const activeId = active ? active.id : '';
+      if (activeId === 'view-orders') renderOrders();
+      if (activeId === 'view-dashboard') renderDashboard();
+    })
+    .catch(function () {
+      // stille achtergrond-sync, geen melding tonen bij een gemiste poging
+    });
 }
 
 function decodeJwt(token) {
