@@ -9,7 +9,7 @@ const state = {
   editItems: [],
   editOrderId: null,
   orderFilter: 'Alle',
-  expandedOrderId: null,
+  orderSearch: '',
   editingProductSku: null,
 };
 
@@ -151,9 +151,11 @@ function switchView(name) {
   document.querySelectorAll('.bottom-nav button').forEach(function (b) {
     b.classList.toggle('active', b.dataset.view === name);
   });
+  document.querySelector('.bottom-nav').classList.toggle('hidden', name === 'order-detail');
   if (name === 'orders') renderOrders();
   if (name === 'products') renderProducts();
   if (name === 'dashboard') renderDashboard();
+  if (name === 'order-detail') renderOrderDetailPage();
 }
 
 function renderAll() {
@@ -334,66 +336,78 @@ function itemsForOrder(orderId) {
 }
 
 function badgeClassForStatus(status) {
-  if (status === 'Verzonden') return 'badge-verzonden';
+  if (status === 'Klaar voor verzending' || status === 'Verzonden') return 'badge-klaar';
   if (status === 'Afgerond') return 'badge-afgerond';
   return 'badge-nieuw';
 }
 
+function initialsFor(o) {
+  const a = (o.Voornaam || '').charAt(0);
+  const b = (o.Achternaam || '').charAt(0);
+  return (a + b).toUpperCase() || '?';
+}
+
 function renderOrders() {
   const list = document.getElementById('orders-list');
-  const filtered = state.orders.filter(function (o) {
-    return state.orderFilter === 'Alle' || o.Status === state.orderFilter;
-  });
+  const q = (state.orderSearch || '').toLowerCase();
+
+  const filtered = state.orders
+    .filter(function (o) {
+      return state.orderFilter === 'Alle' || o.Status === state.orderFilter;
+    })
+    .filter(function (o) {
+      if (!q) return true;
+      const haystack = (o.Voornaam + ' ' + o.Achternaam + ' ' + (o.Notitie || '')).toLowerCase();
+      return haystack.indexOf(q) !== -1;
+    });
 
   if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state">Geen orders in dit filter.</div>';
+    list.innerHTML = '<div class="empty-state">Geen orders gevonden.</div>';
     return;
   }
 
   list.innerHTML = filtered
     .map(function (o) {
       const items = itemsForOrder(o.OrderID);
-      const itemsSummary = items.map(function (i) { return i.Aantal + '\u00d7 ' + i.Naam; }).join(', ');
-      const isOpen = state.expandedOrderId === o.OrderID;
+      const itemCount = items.reduce(function (s, i) { return s + (Number(i.Aantal) || 0); }, 0);
       return (
-        '<div class="card order-card" data-id="' + escapeAttr(o.OrderID) + '">' +
-        '<div class="order-card__top">' +
-        '<span class="order-card__name">' + escapeHtml(o.Voornaam) + ' ' + escapeHtml(o.Achternaam) + '</span>' +
-        '<span class="order-card__amount">&euro;' + Number(o.Totaal).toFixed(2) + '</span>' +
+        '<div class="order-row" data-id="' + escapeAttr(o.OrderID) + '">' +
+        '<div class="order-row__avatar">' + escapeHtml(initialsFor(o)) + '</div>' +
+        '<div class="order-row__main">' +
+        '<div class="order-row__name">' + escapeHtml(o.Voornaam) + ' ' + escapeHtml(o.Achternaam) + '</div>' +
+        '<div class="order-row__meta">' + formatDate(o.Datum) + ' &middot; ' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + '</div>' +
         '</div>' +
-        '<div class="order-card__meta">' + escapeHtml(itemsSummary) + '</div>' +
-        '<div class="order-card__meta">' + formatDate(o.Datum) + '</div>' +
-        '<div>' +
-        '<span class="badge ' + badgeClassForStatus(o.Status) + '">' + escapeHtml(o.Status) + '</span> ' +
-        (o.Betaald ? '<span class="badge badge-betaald">Betaald</span>' : '<span class="badge badge-betaald">Nog niet betaald</span>') +
+        '<div class="order-row__side">' +
+        '<span class="badge ' + badgeClassForStatus(o.Status) + '">' + escapeHtml(o.Status) + '</span>' +
+        '<span class="order-row__amount">&euro;' + Number(o.Totaal).toFixed(2) + '</span>' +
+        '<span class="order-row__chevron">&rsaquo;</span>' +
         '</div>' +
-        (isOpen ? renderOrderEditPanel(o) : '') +
         '</div>'
       );
     })
     .join('');
 
-  list.querySelectorAll('.order-card').forEach(function (card) {
-    card.addEventListener('click', function (ev) {
-      if (ev.target.closest('.order-edit-panel')) return;
-      const id = card.dataset.id;
-      if (state.expandedOrderId === id) {
-        state.expandedOrderId = null;
-        state.editOrderId = null;
-        state.editItems = [];
-      } else {
-        const order = state.orders.filter(function (o) { return o.OrderID === id; })[0];
-        state.expandedOrderId = id;
-        state.editOrderId = id;
-        state.editItems = itemsForOrder(id).map(function (it) {
-          return { sku: it.SKU, naam: it.Naam, prijs: Number(it.PrijsPerStuk), aantal: Number(it.Aantal) };
-        });
-      }
-      renderOrders();
+  list.querySelectorAll('.order-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      openOrderDetail(row.dataset.id);
     });
   });
+}
 
-  bindOrderEditPanels();
+function openOrderDetail(orderId) {
+  const order = state.orders.filter(function (o) { return o.OrderID === orderId; })[0];
+  if (!order) return;
+  state.editOrderId = orderId;
+  state.editItems = itemsForOrder(orderId).map(function (it) {
+    return { sku: it.SKU, naam: it.Naam, prijs: Number(it.PrijsPerStuk), aantal: Number(it.Aantal) };
+  });
+  switchView('order-detail');
+}
+
+function closeOrderDetail() {
+  state.editOrderId = null;
+  state.editItems = [];
+  switchView('orders');
 }
 
 function renderEditSelectedItemsHtml() {
@@ -413,51 +427,53 @@ function renderEditSelectedItemsHtml() {
   );
 }
 
-function refreshEditPanel(panel) {
-  panel.querySelector('.edit-selected-items').innerHTML = renderEditSelectedItemsHtml();
+function refreshEditPanel() {
+  const content = document.getElementById('order-detail-content');
+  content.querySelector('.edit-selected-items').innerHTML = renderEditSelectedItemsHtml();
   const subtotaal = state.editItems.reduce(function (s, it) { return s + it.prijs * it.aantal; }, 0);
-  const korting = Number(panel.querySelector('.edit-korting').value) || 0;
+  const korting = Number(content.querySelector('.edit-korting').value) || 0;
   const totaal = Math.max(subtotaal - korting, 0);
-  panel.querySelector('.edit-total').textContent = '\u20ac' + totaal.toFixed(2);
-  bindEditItemRowEvents(panel);
+  content.querySelector('.edit-total').textContent = '\u20ac' + totaal.toFixed(2);
+  bindEditItemRowEvents(content);
 }
 
-function bindEditItemRowEvents(panel) {
-  panel.querySelectorAll('.edit-qty-input').forEach(function (input) {
+function bindEditItemRowEvents(content) {
+  content.querySelectorAll('.edit-qty-input').forEach(function (input) {
     input.addEventListener('change', function () {
       const idx = Number(input.dataset.idx);
       state.editItems[idx].aantal = Math.max(1, Number(input.value) || 1);
-      refreshEditPanel(panel);
+      refreshEditPanel();
     });
   });
-  panel.querySelectorAll('.edit-remove-item').forEach(function (btn) {
+  content.querySelectorAll('.edit-remove-item').forEach(function (btn) {
     btn.addEventListener('click', function () {
       state.editItems.splice(Number(btn.dataset.idx), 1);
-      refreshEditPanel(panel);
+      refreshEditPanel();
     });
   });
 }
 
-function renderOrderEditPanel(o) {
-  const itemsHtml = state.editItems
-    .map(function (it, idx) {
-      return (
-        '<div class="selected-item">' +
-        '<span class="name">' + escapeHtml(it.naam) + '</span>' +
-        '<input type="number" min="1" value="' + it.aantal + '" data-idx="' + idx + '" class="edit-qty-input">' +
-        '<span class="price">&euro;' + (it.prijs * it.aantal).toFixed(2) + '</span>' +
-        '<button type="button" class="remove edit-remove-item" data-idx="' + idx + '">&times;</button>' +
-        '</div>'
-      );
-    })
-    .join('') || '<div class="empty-state">Geen producten in deze order.</div>';
+function renderOrderDetailPage() {
+  const o = state.orders.filter(function (x) { return x.OrderID === state.editOrderId; })[0];
+  const content = document.getElementById('order-detail-content');
+  if (!o) {
+    content.innerHTML = '<div class="empty-state">Order niet gevonden.</div>';
+    return;
+  }
 
+  const itemsHtml = renderEditSelectedItemsHtml();
   const subtotaal = state.editItems.reduce(function (s, it) { return s + it.prijs * it.aantal; }, 0);
   const korting = Number(o.Korting) || 0;
   const totaal = Math.max(subtotaal - korting, 0);
 
-  return (
-    '<div class="order-edit-panel" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">' +
+  content.innerHTML =
+    '<div class="card">' +
+    '<h2>' + escapeHtml(o.Voornaam) + ' ' + escapeHtml(o.Achternaam) + '</h2>' +
+    '<p class="order-card__meta">' + formatDate(o.Datum) + ' &middot; ' + escapeHtml(o.OrderID) + '</p>' +
+    '</div>' +
+
+    '<div class="card">' +
+    '<h3>Klantgegevens</h3>' +
     '<label>Voornaam</label><input type="text" class="edit-voornaam" value="' + escapeAttr(o.Voornaam) + '">' +
     '<label>Achternaam</label><input type="text" class="edit-achternaam" value="' + escapeAttr(o.Achternaam) + '">' +
     '<label>Straat + huisnr</label><input type="text" class="edit-straat" value="' + escapeAttr(o.Straat || '') + '">' +
@@ -465,19 +481,22 @@ function renderOrderEditPanel(o) {
     '<div><label>Postcode</label><input type="text" class="edit-postcode" value="' + escapeAttr(o.Postcode || '') + '"></div>' +
     '<div><label>Woonplaats</label><input type="text" class="edit-plaats" value="' + escapeAttr(o.Plaats || '') + '"></div>' +
     '</div>' +
+    '</div>' +
 
-    '<label>Producten</label>' +
-    '<input type="text" class="edit-product-search" placeholder="Zoek product om toe te voegen...">' +
+    '<div class="card">' +
+    '<h3>Producten</h3>' +
+    '<input type="text" class="edit-product-search product-search" placeholder="Zoek product om toe te voegen...">' +
     '<div class="product-list edit-product-list"></div>' +
     '<div class="selected-items edit-selected-items">' + itemsHtml + '</div>' +
-
     '<label>Korting (&euro;)</label>' +
     '<input type="number" step="0.01" min="0" class="edit-korting" value="' + korting + '">' +
     '<div class="total-row"><span>Totaal</span><span class="edit-total">&euro;' + totaal.toFixed(2) + '</span></div>' +
+    '</div>' +
 
-    '<label>Status</label>' +
-    '<div class="segmented" data-order="' + escapeAttr(o.OrderID) + '">' +
-    ['Nieuw', 'Verzonden', 'Afgerond'].map(function (s) {
+    '<div class="card">' +
+    '<h3>Status</h3>' +
+    '<div class="segmented edit-status-segmented">' +
+    ['Nieuw', 'Klaar voor verzending', 'Afgerond'].map(function (s) {
       return '<button type="button" data-value="' + s + '" class="' + (o.Status === s ? 'active' : '') + '">' + s + '</button>';
     }).join('') +
     '</div>' +
@@ -487,13 +506,84 @@ function renderOrderEditPanel(o) {
     '</div>' +
     '<label>Notitie</label>' +
     '<textarea class="edit-notitie">' + escapeHtml(o.Notitie || '') + '</textarea>' +
-    '<button type="button" class="btn btn-primary edit-save" style="margin-top:10px;">Wijzigingen opslaan</button>' +
-    '</div>'
-  );
+    '</div>' +
+
+    '<button type="button" id="order-detail-save" class="btn btn-primary">Wijzigingen opslaan</button>';
+
+  bindOrderDetailEvents(o);
 }
 
-function renderEditProductPicker(panel, query) {
-  const list = panel.querySelector('.edit-product-list');
+function bindOrderDetailEvents(o) {
+  const content = document.getElementById('order-detail-content');
+
+  renderEditProductPicker(content, '');
+  content.querySelector('.edit-product-search').addEventListener('input', function (e) {
+    renderEditProductPicker(content, e.target.value);
+  });
+
+  bindEditItemRowEvents(content);
+
+  content.querySelector('.edit-korting').addEventListener('input', function () {
+    refreshEditPanel();
+  });
+
+  content.querySelectorAll('.edit-status-segmented button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      content.querySelectorAll('.edit-status-segmented button').forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+    });
+  });
+
+  content.querySelector('.edit-betaald').addEventListener('change', function (e) {
+    if (e.target.checked) {
+      const active = content.querySelector('.edit-status-segmented button.active');
+      if (active && active.dataset.value === 'Nieuw') {
+        content.querySelectorAll('.edit-status-segmented button').forEach(function (x) {
+          x.classList.toggle('active', x.dataset.value === 'Klaar voor verzending');
+        });
+      }
+    }
+  });
+
+  document.getElementById('order-detail-save').addEventListener('click', function () {
+    const status = content.querySelector('.edit-status-segmented button.active').dataset.value;
+    const betaald = content.querySelector('.edit-betaald').checked;
+    const notitie = content.querySelector('.edit-notitie').value;
+    const korting = Number(content.querySelector('.edit-korting').value) || 0;
+
+    if (!state.editItems.length) {
+      toast('Een order heeft minstens 1 product nodig.', true);
+      return;
+    }
+
+    showSpinner('Opslaan...');
+    callApi('updateOrder', {
+      orderId: o.OrderID,
+      Status: status,
+      Betaald: betaald,
+      Notitie: notitie,
+      Voornaam: content.querySelector('.edit-voornaam').value.trim(),
+      Achternaam: content.querySelector('.edit-achternaam').value.trim(),
+      Straat: content.querySelector('.edit-straat').value.trim(),
+      Postcode: content.querySelector('.edit-postcode').value.trim(),
+      Plaats: content.querySelector('.edit-plaats').value.trim(),
+      korting: korting,
+      items: state.editItems.map(function (it) {
+        return { sku: it.sku, naam: it.naam, prijs: it.prijs, aantal: it.aantal };
+      }),
+    })
+      .then(function () {
+        toast('Order bijgewerkt.');
+        closeOrderDetail();
+        loadBootstrap();
+      })
+      .catch(function (err) { toast(err.message, true); })
+      .finally(hideSpinner);
+  });
+}
+
+function renderEditProductPicker(content, query) {
+  const list = content.querySelector('.edit-product-list');
   const q = (query || '').toLowerCase();
   const filtered = state.products
     .filter(function (p) { return p.Actief; })
@@ -522,7 +612,7 @@ function renderEditProductPicker(panel, query) {
   list.querySelectorAll('.product-list-item').forEach(function (el) {
     el.addEventListener('click', function () {
       addProductToEdit(el.dataset.sku);
-      refreshEditPanel(panel);
+      refreshEditPanel();
     });
   });
 }
@@ -538,68 +628,20 @@ function addProductToEdit(sku) {
   }
 }
 
-function bindOrderEditPanels() {
-  document.querySelectorAll('.order-edit-panel').forEach(function (panel) {
-    const card = panel.closest('.order-card');
-    const orderId = card.dataset.id;
+function deleteCurrentOrder() {
+  const o = state.orders.filter(function (x) { return x.OrderID === state.editOrderId; })[0];
+  if (!o) return;
+  if (!confirm('Order van ' + o.Voornaam + ' ' + o.Achternaam + ' definitief verwijderen? Voorraad wordt teruggezet.')) return;
 
-    renderEditProductPicker(panel, '');
-
-    panel.querySelector('.edit-product-search').addEventListener('input', function (e) {
-      renderEditProductPicker(panel, e.target.value);
-    });
-
-    bindEditItemRowEvents(panel);
-
-    panel.querySelector('.edit-korting').addEventListener('input', function () {
-      refreshEditPanel(panel);
-    });
-
-    panel.querySelectorAll('.segmented button').forEach(function (b) {
-      b.addEventListener('click', function () {
-        panel.querySelectorAll('.segmented button').forEach(function (x) { x.classList.remove('active'); });
-        b.classList.add('active');
-      });
-    });
-
-    panel.querySelector('.edit-save').addEventListener('click', function () {
-      const status = panel.querySelector('.segmented button.active').dataset.value;
-      const betaald = panel.querySelector('.edit-betaald').checked;
-      const notitie = panel.querySelector('.edit-notitie').value;
-      const korting = Number(panel.querySelector('.edit-korting').value) || 0;
-
-      if (!state.editItems.length) {
-        toast('Een order heeft minstens 1 product nodig.', true);
-        return;
-      }
-
-      showSpinner('Opslaan...');
-      callApi('updateOrder', {
-        orderId: orderId,
-        Status: status,
-        Betaald: betaald,
-        Notitie: notitie,
-        Voornaam: panel.querySelector('.edit-voornaam').value.trim(),
-        Achternaam: panel.querySelector('.edit-achternaam').value.trim(),
-        Straat: panel.querySelector('.edit-straat').value.trim(),
-        Postcode: panel.querySelector('.edit-postcode').value.trim(),
-        Plaats: panel.querySelector('.edit-plaats').value.trim(),
-        korting: korting,
-        items: state.editItems.map(function (it) {
-          return { sku: it.sku, naam: it.naam, prijs: it.prijs, aantal: it.aantal };
-        }),
-      })
-        .then(function () {
-          toast('Order bijgewerkt.');
-          state.expandedOrderId = null;
-          state.editOrderId = null;
-          state.editItems = [];
-          loadBootstrap();
-        })
-        .catch(function (err) { toast(err.message, true); })
-        .finally(hideSpinner);
-    });
-  });
+  showSpinner('Verwijderen...');
+  callApi('deleteOrder', { orderId: o.OrderID })
+    .then(function () {
+      toast('Order verwijderd.');
+      closeOrderDetail();
+      loadBootstrap();
+    })
+    .catch(function (err) { toast(err.message, true); })
+    .finally(hideSpinner);
 }
 
 function setOrderFilter(value) {
@@ -759,7 +801,7 @@ function renderDashboard() {
     '<div class="stat-card"><div class="value">&euro;' + d.omzetTotaal.toFixed(0) + '</div><div class="label">Omzet totaal</div></div>' +
     '<div class="stat-card"><div class="value">&euro;' + d.omzetMaand.toFixed(0) + '</div><div class="label">Omzet deze maand</div></div>' +
     '<div class="stat-card"><div class="value">' + d.ordersMaand + '</div><div class="label">Orders deze maand</div></div>' +
-    '<div class="stat-card"><div class="value">' + (d.statusCount['Nieuw'] || 0) + '</div><div class="label">Nog te verzenden</div></div>' +
+    '<div class="stat-card"><div class="value">' + (d.statusCount['Klaar voor verzending'] || 0) + '</div><div class="label">Klaar om te verzenden</div></div>' +
     '</div>' +
     '<div class="card"><h3>Bestsellers</h3>' + bestsellersHtml + '</div>' +
     '<div class="card"><h3>Voorraad bijna op</h3>' + lowStockHtml + '</div>';
@@ -811,5 +853,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.querySelectorAll('#order-filter-tabs button').forEach(function (b) {
     b.addEventListener('click', function () { setOrderFilter(b.dataset.value); });
+  });
+
+  document.getElementById('order-search').addEventListener('input', function (e) {
+    state.orderSearch = e.target.value;
+    renderOrders();
+  });
+
+  document.getElementById('order-detail-back').addEventListener('click', closeOrderDetail);
+  document.getElementById('order-detail-delete').addEventListener('click', deleteCurrentOrder);
+
+  document.getElementById('toggle-betaald').addEventListener('change', function (e) {
+    if (e.target.checked) {
+      const active = document.querySelector('#status-segmented button.active');
+      if (active && active.dataset.value === 'Nieuw') setStatusSegment('Klaar voor verzending');
+    }
   });
 });

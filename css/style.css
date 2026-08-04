@@ -341,7 +341,98 @@ textarea { resize: vertical; min-height: 60px; }
   letter-spacing: 0.3px;
 }
 
+.order-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.order-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.order-row:last-child { border-bottom: none; }
+.order-row:active { background: var(--yellow-soft); }
+
+.order-row__avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--yellow-soft);
+  color: var(--brown-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.order-row__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.order-row__name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.order-row__meta {
+  font-size: 0.74rem;
+  color: var(--brown);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.order-row__side {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.order-row__amount {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--orange-dark);
+  font-size: 0.9rem;
+  min-width: 52px;
+  text-align: right;
+}
+
+.order-row__chevron {
+  color: var(--brown-soft);
+  font-size: 1rem;
+}
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  padding: 4px 0;
+  z-index: 5;
+}
+
+.delete-order-btn { color: var(--orange-dark); }
 .badge-nieuw { background: var(--yellow-soft); color: var(--brown-deep); }
+.badge-klaar { background: #CFE3D0; color: #2E5B34; }
 .badge-verzonden { background: #CFE3D0; color: #2E5B34; }
 .badge-afgerond { background: #D8D8D8; color: #4A4A4A; }
 .badge-betaald { background: var(--bg); color: var(--brown); border: 1px solid var(--line); }

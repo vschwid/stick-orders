@@ -88,7 +88,7 @@
           <h2>Status</h2>
           <div id="status-segmented" class="segmented">
             <button type="button" data-value="Nieuw" class="active">Nieuw</button>
-            <button type="button" data-value="Verzonden">Verzonden</button>
+            <button type="button" data-value="Klaar voor verzending">Klaar voor verzending</button>
             <button type="button" data-value="Afgerond">Afgerond</button>
           </div>
           <div class="toggle-row">
@@ -104,13 +104,22 @@
     </section>
 
     <section id="view-orders" class="view">
+      <input id="order-search" class="product-search" type="text" placeholder="Zoek op naam of notitie...">
       <div id="order-filter-tabs" class="filter-tabs">
         <button data-value="Alle" class="active">Alle</button>
         <button data-value="Nieuw">Nieuw</button>
-        <button data-value="Verzonden">Verzonden</button>
+        <button data-value="Klaar voor verzending">Klaar voor verzending</button>
         <button data-value="Afgerond">Afgerond</button>
       </div>
-      <div id="orders-list"></div>
+      <div id="orders-list" class="order-list"></div>
+    </section>
+
+    <section id="view-order-detail" class="view">
+      <div class="detail-header">
+        <button id="order-detail-back" type="button" class="btn-ghost">&larr; Orders</button>
+        <button id="order-detail-delete" type="button" class="btn-ghost delete-order-btn">Verwijderen</button>
+      </div>
+      <div id="order-detail-content"></div>
     </section>
 
     <section id="view-products" class="view">
