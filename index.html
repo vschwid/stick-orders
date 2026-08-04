@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orders</title>
+<meta name="theme-color" content="#FEF8E4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<div id="login-view">
+  <svg class="motif" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+    <g fill="none" stroke="#7B4B32" stroke-width="1.5">
+      <circle cx="0" cy="0" r="14"/><circle cx="56" cy="0" r="14"/>
+      <circle cx="0" cy="56" r="14"/><circle cx="56" cy="56" r="14"/>
+      <circle cx="28" cy="28" r="14"/>
+    </g>
+  </svg>
+  <h1 id="login-app-name">Orders</h1>
+  <p>Log in met je Google account om orders te beheren.</p>
+  <div id="google-signin-button"></div>
+</div>
+
+<div id="app-shell" class="hidden">
+
+  <header class="app-header">
+    <div class="app-header__inner">
+      <div>
+        <h1 id="header-app-name">Orders</h1>
+        <p class="tagline">Orders &amp; voorraad</p>
+      </div>
+      <div class="user-chip">
+        <img id="user-avatar" src="" alt="">
+        <span id="user-name"></span>
+        <button id="logout-btn" type="button">Uitloggen</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <section id="view-new-order" class="view active">
+      <form id="form-new-order">
+        <div class="card">
+          <h2>Klantgegevens</h2>
+          <div class="field-row">
+            <div><label for="input-voornaam">Voornaam</label><input id="input-voornaam" type="text" required></div>
+            <div><label for="input-achternaam">Achternaam</label><input id="input-achternaam" type="text" required></div>
+          </div>
+          <label for="input-straat">Straat + huisnr</label>
+          <input id="input-straat" type="text">
+          <div class="field-row">
+            <div><label for="input-postcode">Postcode</label><input id="input-postcode" type="text" placeholder="1234 AB"></div>
+            <div><label for="input-plaats">Woonplaats</label><input id="input-plaats" type="text"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Producten</h2>
+          <input id="product-search" class="product-search" type="text" placeholder="Zoek product op naam, SKU of categorie...">
+          <div id="product-picker-list" class="product-list"></div>
+
+          <div id="selected-items" class="selected-items"></div>
+
+          <label for="input-korting">Korting (&euro;)</label>
+          <input id="input-korting" type="number" step="0.01" min="0" value="0">
+
+          <div class="total-row"><span>Totaal</span><span id="order-total">&euro;0.00</span></div>
+        </div>
+
+        <div class="card">
+          <h2>Status</h2>
+          <div id="status-segmented" class="segmented">
+            <button type="button" data-value="Nieuw" class="active">Nieuw</button>
+            <button type="button" data-value="Verzonden">Verzonden</button>
+            <button type="button" data-value="Afgerond">Afgerond</button>
+          </div>
+          <div class="toggle-row">
+            <label for="toggle-betaald">Betaald</label>
+            <label class="switch"><input id="toggle-betaald" type="checkbox"><span class="switch-track"></span></label>
+          </div>
+          <label for="input-notitie">Notitie</label>
+          <textarea id="input-notitie" placeholder="Bijv. cadeauverpakking, afwijkend adres..."></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Order opslaan</button>
+      </form>
+    </section>
+
+    <section id="view-orders" class="view">
+      <div id="order-filter-tabs" class="filter-tabs">
+        <button data-value="Alle" class="active">Alle</button>
+        <button data-value="Nieuw">Nieuw</button>
+        <button data-value="Verzonden">Verzonden</button>
+        <button data-value="Afgerond">Afgerond</button>
+      </div>
+      <div id="orders-list"></div>
+    </section>
+
+    <section id="view-products" class="view">
+      <div class="card">
+        <h2>Nieuw product</h2>
+        <form id="form-new-product">
+          <div class="field-row">
+            <div><label for="np-sku">SKU</label><input id="np-sku" type="text" required></div>
+            <div><label for="np-naam">Naam</label><input id="np-naam" type="text" required></div>
+          </div>
+          <div class="field-row">
+            <div><label for="np-categorie">Categorie</label><input id="np-categorie" type="text" placeholder="bv. Jibbitz"></div>
+            <div><label for="np-prijs">Prijs (&euro;)</label><input id="np-prijs" type="number" step="0.01" min="0"></div>
+          </div>
+          <label for="np-voorraad">Voorraad</label>
+          <input id="np-voorraad" type="number" min="0" value="0">
+          <button type="submit" class="btn btn-secondary" style="margin-top:14px;">Product toevoegen</button>
+        </form>
+      </div>
+      <h2 style="margin: 18px 4px 10px;">Alle producten</h2>
+      <div id="products-list"></div>
+    </section>
+
+    <section id="view-dashboard" class="view">
+      <div id="dashboard-content"></div>
+    </section>
+
+  </main>
+
+  <nav class="bottom-nav">
+    <button data-view="new-order" class="active"><span class="icon">✚</span>Nieuw</button>
+    <button data-view="orders"><span class="icon">📦</span>Orders</button>
+    <button data-view="products"><span class="icon">🏷️</span>Producten</button>
+    <button data-view="dashboard"><span class="icon">📊</span>Dashboard</button>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+  <div id="spinner" class="spinner-overlay hidden">Even geduld...</div>
+
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
