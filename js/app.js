@@ -492,7 +492,6 @@ function renderOrders() {
         '<div class="order-row__bottom">' +
         '<span class="order-row__meta">' + formatDate(o.Datum) + ' &middot; ' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + '</span>' +
         '<div class="order-row__side">' +
-        '<span class="badge ' + badgeClassForStatus(o.Status) + '">' + escapeHtml(normalizeStatus(o.Status)) + '</span>' +
         '<span class="badge-paid-icon ' + (o.Betaald ? 'is-paid' : 'is-unpaid') + '"><span class="material-symbols-outlined">euro</span>' + (o.Betaald ? 'Ja' : 'Nee') + '</span>' +
         '<span class="order-row__amount">&euro;' + Number(o.Totaal).toFixed(2) + '</span>' +
         '<span class="material-symbols-outlined order-row__chevron">chevron_right</span>' +
@@ -617,7 +616,7 @@ function renderOrderDetailPage() {
     }).join('') +
     '</div>' +
     '<div class="toggle-row">' +
-    '<label>Betaald</label>' +
+    '<label><span class="material-symbols-outlined" style="font-size:18px;">euro</span> Betaald</label>' +
     '<label class="switch"><input type="checkbox" class="edit-betaald" ' + (o.Betaald ? 'checked' : '') + '><span class="switch-track"></span></label>' +
     '</div>' +
     '<label>Notitie</label>' +

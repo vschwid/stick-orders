@@ -263,7 +263,7 @@ textarea { resize: vertical; min-height: 60px; }
   margin-top: 12px;
 }
 
-.toggle-row label { margin: 0; text-transform: none; font-size: 0.92rem; color: var(--brown-deep); }
+.toggle-row label { margin: 0; text-transform: none; font-size: 0.92rem; color: var(--brown-deep); display: inline-flex; align-items: center; gap: 4px; }
 
 .switch { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }
@@ -528,6 +528,24 @@ textarea { resize: vertical; min-height: 60px; }
 }
 
 .filter-tabs button.active { background: var(--brown-deep); color: white; border-color: var(--brown-deep); }
+
+.detail-header .btn-ghost {
+  border: 1.5px solid var(--line);
+  background: var(--bg-card);
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brown);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+}
+
+.detail-header .delete-order-btn { color: var(--rust-dark); }
+.detail-header .btn-ghost .material-symbols-outlined { font-size: 18px; }
 
 .stat-grid {
   display: grid;
