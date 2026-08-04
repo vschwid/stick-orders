@@ -377,6 +377,15 @@ function badgeClassForStatus(status) {
   return 'badge-nieuw';
 }
 
+function badgeClassForBetaald(betaald) {
+  return betaald ? 'badge-betaald' : 'badge-onbetaald';
+}
+
+function shortStatusLabel(status) {
+  if (status === 'Klaar voor verzending') return 'Klaar';
+  return status;
+}
+
 function initialsFor(o) {
   const a = (o.Voornaam || '').charAt(0);
   const b = (o.Achternaam || '').charAt(0);
@@ -414,7 +423,8 @@ function renderOrders() {
         '<div class="order-row__meta">' + formatDate(o.Datum) + ' &middot; ' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + '</div>' +
         '</div>' +
         '<div class="order-row__side">' +
-        '<span class="badge ' + badgeClassForStatus(o.Status) + '">' + escapeHtml(o.Status) + '</span>' +
+        '<span class="badge ' + badgeClassForStatus(o.Status) + '">' + escapeHtml(shortStatusLabel(o.Status)) + '</span>' +
+        '<span class="badge ' + badgeClassForBetaald(o.Betaald) + '">' + (o.Betaald ? 'Betaald' : 'Niet betaald') + '</span>' +
         '<span class="order-row__amount">&euro;' + Number(o.Totaal).toFixed(2) + '</span>' +
         '<span class="order-row__chevron">&rsaquo;</span>' +
         '</div>' +
@@ -828,7 +838,7 @@ function renderDashboard() {
     : '<div class="empty-state">Alle voorraad op peil.</div>';
 
   const dupWarning = (d.duplicateSkus && d.duplicateSkus.length)
-    ? '<div class="card" style="border-color:var(--orange-dark);"><h3 style="color:var(--orange-dark);">Let op: dubbele SKU\'s</h3><p>Deze SKU-waarden komen meerdere keren voor in je Producten-tabblad: <strong>' + d.duplicateSkus.map(escapeHtml).join(', ') + '</strong>. Producten met dezelfde SKU worden door het systeem als \u00e9\u00e9n product behandeld. Maak elke SKU uniek.</p></div>'
+    ? '<div class="card" style="border-color:var(--rust-dark);"><h3 style="color:var(--rust-dark);">Let op: dubbele SKU\'s</h3><p>Deze SKU-waarden komen meerdere keren voor in je Producten-tabblad: <strong>' + d.duplicateSkus.map(escapeHtml).join(', ') + '</strong>. Producten met dezelfde SKU worden door het systeem als \u00e9\u00e9n product behandeld. Maak elke SKU uniek.</p></div>'
     : '';
 
   wrap.innerHTML =
