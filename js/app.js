@@ -35,7 +35,34 @@ function initGoogleLogin() {
     text: 'signin_with',
     width: 260,
   });
-  google.accounts.id.prompt();
+  attemptSilentLogin();
+  scheduleSilentRefresh();
+}
+
+function attemptSilentLogin() {
+  google.accounts.id.prompt(function (notification) {
+    if (
+      notification.isNotDisplayed &&
+      (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment())
+    ) {
+      if (!state.idToken) revealManualLogin();
+    }
+  });
+}
+
+function revealManualLogin() {
+  const checking = document.getElementById('login-checking');
+  const manual = document.getElementById('login-manual');
+  if (checking) checking.classList.add('hidden');
+  if (manual) manual.classList.remove('hidden');
+}
+
+function scheduleSilentRefresh() {
+  setInterval(function () {
+    if (state.idToken) {
+      google.accounts.id.prompt();
+    }
+  }, 50 * 60 * 1000);
 }
 
 function decodeJwt(token) {
@@ -85,9 +112,15 @@ function loadBootstrap() {
   showSpinner('Gegevens ophalen...');
   callApi('bootstrap')
     .then(function (data) {
-      state.products = data.products || [];
-      state.orders = data.orders || [];
-      state.items = data.items || [];
+      state.products = (data.products || []).map(function (p) {
+        return Object.assign({}, p, { SKU: String(p.SKU) });
+      });
+      state.orders = (data.orders || []).map(function (o) {
+        return Object.assign({}, o, { OrderID: String(o.OrderID) });
+      });
+      state.items = (data.items || []).map(function (it) {
+        return Object.assign({}, it, { OrderID: String(it.OrderID), SKU: String(it.SKU) });
+      });
       state.dashboard = data.dashboard || null;
       renderAll();
     })
@@ -101,6 +134,7 @@ function loadBootstrap() {
 function showLogin() {
   document.getElementById('login-view').classList.remove('hidden');
   document.getElementById('app-shell').classList.add('hidden');
+  revealManualLogin();
 }
 
 function showApp() {

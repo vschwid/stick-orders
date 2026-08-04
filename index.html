@@ -13,16 +13,28 @@
 <body>
 
 <div id="login-view">
-  <svg class="motif" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
-    <g fill="none" stroke="#7B4B32" stroke-width="1.5">
-      <circle cx="0" cy="0" r="14"/><circle cx="56" cy="0" r="14"/>
-      <circle cx="0" cy="56" r="14"/><circle cx="56" cy="56" r="14"/>
-      <circle cx="28" cy="28" r="14"/>
-    </g>
-  </svg>
-  <h1 id="login-app-name">Orders</h1>
-  <p>Log in met je Google account om orders te beheren.</p>
-  <div id="google-signin-button"></div>
+  <div id="login-checking">
+    <svg class="motif" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="#7B4B32" stroke-width="1.5">
+        <circle cx="0" cy="0" r="14"/><circle cx="56" cy="0" r="14"/>
+        <circle cx="0" cy="56" r="14"/><circle cx="56" cy="56" r="14"/>
+        <circle cx="28" cy="28" r="14"/>
+      </g>
+    </svg>
+    <p>Bezig met inloggen...</p>
+  </div>
+  <div id="login-manual" class="hidden">
+    <svg class="motif" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="#7B4B32" stroke-width="1.5">
+        <circle cx="0" cy="0" r="14"/><circle cx="56" cy="0" r="14"/>
+        <circle cx="0" cy="56" r="14"/><circle cx="56" cy="56" r="14"/>
+        <circle cx="28" cy="28" r="14"/>
+      </g>
+    </svg>
+    <h1 id="login-app-name">Orders</h1>
+    <p>Log in met je Google account om orders te beheren.</p>
+    <div id="google-signin-button"></div>
+  </div>
 </div>
 
 <div id="app-shell" class="hidden">
