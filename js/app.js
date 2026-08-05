@@ -221,6 +221,30 @@ function hideSpinner() {
   document.getElementById('spinner').classList.add('hidden');
 }
 
+function getCartQtyForSku(sku) {
+  const item = state.selectedItems.filter(function (i) { return i.sku === sku; })[0];
+  return item ? item.aantal : 0;
+}
+
+function buildProductTileHtml(p, cartQty) {
+  const remaining = Number(p.Voorraad) - cartQty;
+  const low = remaining <= 3;
+  const photoHtml = p.Foto
+    ? '<img src="' + escapeAttr(p.Foto) + '" class="product-tile__photo">'
+    : '<div class="product-tile__photo product-tile__photo--placeholder"></div>';
+  const badgeHtml = cartQty > 0 ? '<span class="product-tile__badge">' + cartQty + '</span>' : '';
+  const metaParts = [];
+  if (p.Categorie) metaParts.push(escapeHtml(p.Categorie));
+  metaParts.push('&euro;' + Number(p.Prijs).toFixed(2));
+  return (
+    '<div class="product-tile" data-sku="' + escapeAttr(p.SKU) + '">' +
+    '<div class="product-tile__photo-wrap">' + photoHtml + badgeHtml + '</div>' +
+    '<div class="product-tile__name ' + (low ? 'stock-low' : '') + '">' + escapeHtml(p.Naam) + ' (' + remaining + ')</div>' +
+    '<div class="product-tile__meta">' + metaParts.join(' &middot; ') + '</div>' +
+    '</div>'
+  );
+}
+
 function renderProductPicker(query) {
   const list = document.getElementById('product-picker-list');
   const q = (query || '').toLowerCase();
@@ -236,19 +260,10 @@ function renderProductPicker(query) {
   }
 
   list.innerHTML = filtered
-    .map(function (p) {
-      const low = Number(p.Voorraad) <= 3;
-      return (
-        '<div class="product-list-item" data-sku="' + escapeAttr(p.SKU) + '">' +
-        '<div><strong>' + escapeHtml(p.Naam) + '</strong>' +
-        '<small>' + escapeHtml(p.Categorie || '') + ' &middot; &euro;' + Number(p.Prijs).toFixed(2) +
-        ' &middot; <span class="' + (low ? 'stock-low' : '') + '">voorraad: ' + p.Voorraad + '</span></small></div>' +
-        '<span class="material-symbols-outlined" style="font-size:18px;">add</span></div>'
-      );
-    })
+    .map(function (p) { return buildProductTileHtml(p, getCartQtyForSku(p.SKU)); })
     .join('');
 
-  list.querySelectorAll('.product-list-item').forEach(function (el) {
+  list.querySelectorAll('.product-tile').forEach(function (el) {
     el.addEventListener('click', function () { addProductToOrder(el.dataset.sku); });
   });
 }
@@ -263,6 +278,7 @@ function addProductToOrder(sku) {
     state.selectedItems.push({ sku: sku, naam: product.Naam, prijs: Number(product.Prijs), aantal: 1 });
   }
   renderSelectedItems();
+  renderProductPicker(document.getElementById('product-search').value);
 }
 
 function renderSelectedItems() {
@@ -278,7 +294,7 @@ function renderSelectedItems() {
       return (
         '<div class="selected-item">' +
         '<span class="name">' + escapeHtml(it.naam) + '</span>' +
-        '<input type="number" min="1" value="' + it.aantal + '" data-idx="' + idx + '" class="qty-input">' +
+        '<span class="qty-text" data-idx="' + idx + '">' + it.aantal + '&times;</span>' +
         '<span class="price">&euro;' + (it.prijs * it.aantal).toFixed(2) + '</span>' +
         '<button class="remove" data-idx="' + idx + '"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>' +
         '</div>'
@@ -286,17 +302,11 @@ function renderSelectedItems() {
     })
     .join('');
 
-  wrap.querySelectorAll('.qty-input').forEach(function (input) {
-    input.addEventListener('change', function () {
-      const idx = Number(input.dataset.idx);
-      state.selectedItems[idx].aantal = Math.max(1, Number(input.value) || 1);
-      renderSelectedItems();
-    });
-  });
   wrap.querySelectorAll('.remove').forEach(function (btn) {
     btn.addEventListener('click', function () {
       state.selectedItems.splice(Number(btn.dataset.idx), 1);
       renderSelectedItems();
+      renderProductPicker(document.getElementById('product-search').value);
     });
   });
 
@@ -357,12 +367,56 @@ function tryAutoFillAddress() {
     });
 }
 
+function resizeImageFile(file, maxDim) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = function () {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = function () {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round(h * (maxDim / w));
+            w = maxDim;
+          } else {
+            w = Math.round(w * (maxDim / h));
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        resolve(dataUrl.split(',')[1]);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function uploadPhotoForSku(sku, file) {
+  return resizeImageFile(file, 1000).then(function (base64) {
+    return callApi('uploadProductPhoto', {
+      sku: sku,
+      fileName: file.name,
+      mimeType: 'image/jpeg',
+      data: base64,
+    });
+  });
+}
+
 function resetOrderForm() {
   document.getElementById('form-new-order').reset();
   state.selectedItems = [];
   renderSelectedItems();
   setStatusSegment('Open');
   document.getElementById('toggle-betaald').checked = false;
+  document.getElementById('product-search').classList.add('hidden');
   renderProductPicker('');
 }
 
@@ -550,6 +604,7 @@ function refreshEditPanel() {
   const totaal = Math.max(subtotaal - korting, 0);
   content.querySelector('.edit-total').textContent = '\u20ac' + totaal.toFixed(2);
   bindEditItemRowEvents(content);
+  renderEditProductPicker(content, content.querySelector('.edit-product-search').value);
 }
 
 function bindEditItemRowEvents(content) {
@@ -599,12 +654,17 @@ function renderOrderDetailPage() {
     '</div>' +
 
     '<div class="card">' +
+    '<div class="card-title-row">' +
     '<h3>Producten</h3>' +
-    '<input type="text" class="edit-product-search product-search" placeholder="Zoek product om toe te voegen...">' +
-    '<div class="product-list edit-product-list"></div>' +
+    '<button type="button" class="btn-ghost edit-product-search-toggle" aria-label="Zoeken"><span class="material-symbols-outlined">search</span></button>' +
+    '</div>' +
+    '<input type="text" class="edit-product-search product-search hidden" placeholder="Zoek product om toe te voegen...">' +
+    '<div class="product-grid edit-product-list"></div>' +
     '<div class="selected-items edit-selected-items">' + itemsHtml + '</div>' +
-    '<label>Korting (&euro;)</label>' +
-    '<input type="number" step="0.01" min="0" class="edit-korting" value="' + korting + '">' +
+    '<div class="korting-row">' +
+    '<label style="margin:0;">Korting (&euro;)</label>' +
+    '<input type="number" step="0.01" min="0" class="edit-korting korting-input" value="' + korting + '">' +
+    '</div>' +
     '<div class="total-row"><span>Totaal</span><span class="edit-total">&euro;' + totaal.toFixed(2) + '</span></div>' +
     '</div>' +
 
@@ -634,6 +694,12 @@ function bindOrderDetailEvents(o) {
   renderEditProductPicker(content, '');
   content.querySelector('.edit-product-search').addEventListener('input', function (e) {
     renderEditProductPicker(content, e.target.value);
+  });
+
+  content.querySelector('.edit-product-search-toggle').addEventListener('click', function () {
+    const input = content.querySelector('.edit-product-search');
+    input.classList.toggle('hidden');
+    if (!input.classList.contains('hidden')) input.focus();
   });
 
   bindEditItemRowEvents(content);
@@ -697,6 +763,11 @@ function bindOrderDetailEvents(o) {
   });
 }
 
+function getEditCartQtyForSku(sku) {
+  const item = state.editItems.filter(function (i) { return i.sku === sku; })[0];
+  return item ? item.aantal : 0;
+}
+
 function renderEditProductPicker(content, query) {
   const list = content.querySelector('.edit-product-list');
   const q = (query || '').toLowerCase();
@@ -712,19 +783,10 @@ function renderEditProductPicker(content, query) {
   }
 
   list.innerHTML = filtered
-    .map(function (p) {
-      const low = Number(p.Voorraad) <= 3;
-      return (
-        '<div class="product-list-item" data-sku="' + escapeAttr(p.SKU) + '">' +
-        '<div><strong>' + escapeHtml(p.Naam) + '</strong>' +
-        '<small>' + escapeHtml(p.Categorie || '') + ' &middot; &euro;' + Number(p.Prijs).toFixed(2) +
-        ' &middot; <span class="' + (low ? 'stock-low' : '') + '">voorraad: ' + p.Voorraad + '</span></small></div>' +
-        '<span class="material-symbols-outlined" style="font-size:18px;">add</span></div>'
-      );
-    })
+    .map(function (p) { return buildProductTileHtml(p, getEditCartQtyForSku(p.SKU)); })
     .join('');
 
-  list.querySelectorAll('.product-list-item').forEach(function (el) {
+  list.querySelectorAll('.product-tile').forEach(function (el) {
     el.addEventListener('click', function () {
       addProductToEdit(el.dataset.sku);
       refreshEditPanel();
@@ -781,7 +843,10 @@ function renderProducts() {
       return (
         '<div class="card" data-sku="' + escapeAttr(p.SKU) + '">' +
         '<div class="card-title-row">' +
+        '<div style="display:flex;align-items:center;">' +
+        (p.Foto ? '<img src="' + escapeAttr(p.Foto) + '" class="product-thumb">' : '') +
         '<div><strong>' + escapeHtml(p.Naam) + '</strong><br><small style="color:var(--brown)">' + escapeHtml(p.SKU) + ' &middot; ' + escapeHtml(p.Categorie || '') + '</small></div>' +
+        '</div>' +
         '<button class="btn-ghost edit-toggle">' + (isEditing ? 'Sluiten' : 'Bewerken') + '</button>' +
         '</div>' +
         '<div class="order-card__meta">&euro;' + Number(p.Prijs).toFixed(2) + ' &middot; voorraad: <span class="' + (low ? 'stock-low' : '') + '">' + p.Voorraad + '</span> ' +
@@ -804,8 +869,12 @@ function renderProducts() {
 }
 
 function renderProductEditForm(p) {
+  const currentPhoto = p.Foto
+    ? '<img src="' + escapeAttr(p.Foto) + '" class="product-thumb" style="width:56px;height:56px;margin:0 0 8px;">'
+    : '';
   return (
     '<div class="product-edit-form" style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">' +
+    currentPhoto +
     '<label>Naam</label><input type="text" class="e-naam" value="' + escapeAttr(p.Naam) + '">' +
     '<div class="field-row">' +
     '<div><label>Categorie</label><input type="text" class="e-categorie" value="' + escapeAttr(p.Categorie || '') + '"></div>' +
@@ -815,6 +884,8 @@ function renderProductEditForm(p) {
     '<div><label>Voorraad</label><input type="number" class="e-voorraad" value="' + Number(p.Voorraad) + '"></div>' +
     '<div><label>Status</label><select class="e-actief"><option value="true" ' + (p.Actief ? 'selected' : '') + '>Actief</option><option value="false" ' + (!p.Actief ? 'selected' : '') + '>Uitgeschakeld</option></select></div>' +
     '</div>' +
+    '<label>Foto ' + (p.Foto ? 'vervangen' : 'toevoegen') + '</label>' +
+    '<input type="file" class="e-foto" accept="image/*">' +
     '<button type="button" class="btn btn-primary e-save" style="margin-top:10px;">Opslaan</button>' +
     '<button type="button" class="btn btn-secondary e-delete" style="margin-top:8px;">Product verwijderen</button>' +
     '</div>'
@@ -835,8 +906,13 @@ function bindProductEditForms() {
         voorraad: Number(form.querySelector('.e-voorraad').value) || 0,
         actief: form.querySelector('.e-actief').value === 'true',
       };
+      const fotoFile = form.querySelector('.e-foto').files[0];
+
       showSpinner('Opslaan...');
       callApi('saveProduct', payload)
+        .then(function () {
+          if (fotoFile) return uploadPhotoForSku(sku, fotoFile);
+        })
         .then(function () {
           toast('Product opgeslagen.');
           state.editingProductSku = null;
@@ -875,8 +951,15 @@ function submitNewProduct(ev) {
     toast('Vul minimaal een naam in.', true);
     return;
   }
+  const fotoFile = document.getElementById('np-foto').files[0];
+
   showSpinner('Product toevoegen...');
   callApi('saveProduct', payload)
+    .then(function (result) {
+      if (fotoFile) {
+        return uploadPhotoForSku(result.sku, fotoFile);
+      }
+    })
     .then(function () {
       toast('Product toegevoegd.');
       document.getElementById('form-new-product').reset();
@@ -958,6 +1041,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
   document.getElementById('product-search').addEventListener('input', function (e) {
     renderProductPicker(e.target.value);
+  });
+
+  document.getElementById('product-search-toggle').addEventListener('click', function () {
+    const input = document.getElementById('product-search');
+    input.classList.toggle('hidden');
+    if (!input.classList.contains('hidden')) input.focus();
   });
 
   document.getElementById('input-korting').addEventListener('input', updateTotal);

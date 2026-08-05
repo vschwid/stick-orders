@@ -68,14 +68,19 @@
         </div>
 
         <div class="card">
-          <h2>Producten</h2>
-          <input id="product-search" class="product-search" type="text" placeholder="Zoek product op naam, SKU of categorie...">
-          <div id="product-picker-list" class="product-list"></div>
+          <div class="card-title-row">
+            <h2>Producten</h2>
+            <button type="button" id="product-search-toggle" class="btn-ghost" aria-label="Zoeken"><span class="material-symbols-outlined">search</span></button>
+          </div>
+          <input id="product-search" class="product-search hidden" type="text" placeholder="Zoek product op naam, SKU of categorie...">
+          <div id="product-picker-list" class="product-grid"></div>
 
           <div id="selected-items" class="selected-items"></div>
 
-          <label for="input-korting">Korting (&euro;)</label>
-          <input id="input-korting" type="number" step="0.01" min="0" value="0">
+          <div class="korting-row">
+            <label for="input-korting" style="margin:0;">Korting (&euro;)</label>
+            <input id="input-korting" class="korting-input" type="number" step="0.01" min="0" value="0">
+          </div>
 
           <div class="total-row"><span>Totaal</span><span id="order-total">&euro;0.00</span></div>
         </div>
@@ -137,6 +142,8 @@
           </div>
           <label for="np-voorraad">Voorraad</label>
           <input id="np-voorraad" type="number" min="0" value="0">
+          <label for="np-foto">Foto (optioneel)</label>
+          <input id="np-foto" type="file" accept="image/*">
           <button type="submit" class="btn btn-secondary" style="margin-top:14px;">Product toevoegen</button>
         </form>
       </div>
