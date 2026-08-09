@@ -10,7 +10,7 @@ const state = {
   editOrderId: null,
   orderFilter: 'Open',
   orderSort: { field: 'datum', dir: 'desc' },
-  orderSearch: '',  
+  orderSearch: '',
   editingProductSku: null,
 };
 
@@ -204,7 +204,7 @@ function callApi(action, payload, isRetry) {
 
 function loadBootstrap(quiet) {
   if (!quiet) showSpinner('Gegevens ophalen...');
-  callApi('bootstrap')
+  return callApi('bootstrap')
     .then(function (data) {
       state.products = (data.products || []).map(function (p) {
         return Object.assign({}, p, { SKU: String(p.SKU) });
@@ -561,10 +561,12 @@ function submitNewOrder(ev) {
 
   showSpinner('Order opslaan...');
   callApi('createOrder', payload)
-    .then(function () {
+    .then(function (result) {
       toast('Order opgeslagen!');
       resetOrderForm();
-      loadBootstrap(true);
+      return loadBootstrap(true).then(function () {
+        openOrderDetail(result.orderId);
+      });
     })
     .catch(function (err) { toast(err.message, true); })
     .finally(hideSpinner);
