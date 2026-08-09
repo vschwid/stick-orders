@@ -235,20 +235,62 @@ function showApp() {
   document.getElementById('login-view').classList.add('hidden');
   document.getElementById('app-shell').classList.remove('hidden');
   document.getElementById('user-avatar').src = state.user.picture;
-  switchView('new-order');
+  if (!location.hash) {
+    location.hash = 'new-order';
+  } else {
+    handleHashChange();
+  }
 }
 
-function switchView(name) {
+function renderView(name) {
   document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
   document.getElementById('view-' + name).classList.add('active');
   document.querySelectorAll('.bottom-nav button').forEach(function (b) {
     b.classList.toggle('active', b.dataset.view === name);
   });
   document.querySelector('.bottom-nav').classList.toggle('hidden', name === 'order-detail');
+  window.scrollTo(0, 0);
   if (name === 'orders') renderOrders();
   if (name === 'products') renderProducts();
   if (name === 'dashboard') renderDashboard();
   if (name === 'order-detail') renderOrderDetailPage();
+}
+
+function navigate(name) {
+  if (location.hash.slice(1) === name) {
+    renderView(name);
+  } else {
+    location.hash = name;
+  }
+}
+
+function navigateToOrder(orderId) {
+  const target = 'order/' + orderId;
+  if (location.hash.slice(1) === target) {
+    openOrderDetailByHash(orderId);
+  } else {
+    location.hash = target;
+  }
+}
+
+function openOrderDetailByHash(orderId) {
+  const order = state.orders.filter(function (o) { return o.OrderID === orderId; })[0];
+  if (!order) { renderView('orders'); return; }
+  state.editOrderId = orderId;
+  state.editItems = itemsForOrder(orderId).map(function (it) {
+    return { sku: it.SKU, naam: it.Naam, prijs: Number(it.PrijsPerStuk), aantal: Number(it.Aantal) };
+  });
+  renderView('order-detail');
+}
+
+function handleHashChange() {
+  const hash = location.hash.replace(/^#/, '');
+  if (hash.indexOf('order/') === 0) {
+    openOrderDetailByHash(hash.slice('order/'.length));
+    return;
+  }
+  const known = ['new-order', 'orders', 'products', 'dashboard'];
+  renderView(known.indexOf(hash) !== -1 ? hash : 'new-order');
 }
 
 function renderAll() {
@@ -395,7 +437,7 @@ function normalizePostcode(pc) {
 }
 
 function isValidPostcode(pc) {
-  return /^[1-9][0-9]{3}[A-Z]{2}$/.test(normalizePostcode(pc));
+  return /^[0-9]{4}[A-Z]{2}$/.test(normalizePostcode(pc));
 }
 
 function tryAutoFillAddress() {
@@ -565,7 +607,7 @@ function submitNewOrder(ev) {
       toast('Order opgeslagen!');
       resetOrderForm();
       return loadBootstrap(true).then(function () {
-        openOrderDetail(result.orderId);
+        navigateToOrder(result.orderId);
       });
     })
     .catch(function (err) { toast(err.message, true); })
@@ -673,25 +715,15 @@ function renderOrders() {
 
   list.querySelectorAll('.order-row').forEach(function (row) {
     row.addEventListener('click', function () {
-      openOrderDetail(row.dataset.id);
+      navigateToOrder(row.dataset.id);
     });
   });
-}
-
-function openOrderDetail(orderId) {
-  const order = state.orders.filter(function (o) { return o.OrderID === orderId; })[0];
-  if (!order) return;
-  state.editOrderId = orderId;
-  state.editItems = itemsForOrder(orderId).map(function (it) {
-    return { sku: it.SKU, naam: it.Naam, prijs: Number(it.PrijsPerStuk), aantal: Number(it.Aantal) };
-  });
-  switchView('order-detail');
 }
 
 function closeOrderDetail() {
   state.editOrderId = null;
   state.editItems = [];
-  switchView('orders');
+  navigate('orders');
 }
 
 function renderEditSelectedItemsHtml() {
@@ -1142,13 +1174,15 @@ function waitForGoogleThenInit() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  window.addEventListener('hashchange', handleHashChange);
+
   applyAppName();
   waitForGoogleThenInit();
 
   document.getElementById('logout-btn').addEventListener('click', logout);
 
   document.querySelectorAll('.bottom-nav button').forEach(function (b) {
-    b.addEventListener('click', function () { switchView(b.dataset.view); });
+    b.addEventListener('click', function () { navigate(b.dataset.view); });
   });
 
   document.getElementById('form-new-order').addEventListener('submit', submitNewOrder);
