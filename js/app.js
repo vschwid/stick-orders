@@ -10,7 +10,7 @@ const state = {
   editOrderId: null,
   orderFilter: 'Open',
   orderSort: { field: 'datum', dir: 'desc' },
-  orderSearch: '',
+  orderSearch: '',  
   editingProductSku: null,
 };
 
@@ -28,6 +28,7 @@ function initGoogleLogin() {
     client_id: CONFIG.GOOGLE_CLIENT_ID,
     callback: handleCredentialResponse,
     auto_select: true,
+    use_fedcm_for_prompt: true,
   });
   google.accounts.id.renderButton(document.getElementById('google-signin-button'), {
     theme: 'filled_black',
@@ -36,9 +37,44 @@ function initGoogleLogin() {
     text: 'signin_with',
     width: 260,
   });
-  attemptSilentLogin();
+
+  const stored = loadStoredToken();
+  if (stored) {
+    applyToken(stored);
+    showApp();
+    restoreDraft();
+    loadBootstrap();
+  } else {
+    attemptSilentLogin();
+  }
   scheduleSilentRefresh();
   scheduleSilentSync();
+}
+
+function saveStoredToken(idToken) {
+  try { localStorage.setItem('stb_id_token', idToken); } catch (err) { /* privé-browsen ofzo, dan negeren we het gewoon */ }
+}
+
+function clearStoredToken() {
+  try { localStorage.removeItem('stb_id_token'); } catch (err) { /* niks aan te doen */ }
+}
+
+function loadStoredToken() {
+  try {
+    const t = localStorage.getItem('stb_id_token');
+    if (!t) return null;
+    const payload = decodeJwt(t);
+    if (payload.exp && payload.exp * 1000 > Date.now()) return t;
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function applyToken(idToken) {
+  state.idToken = idToken;
+  const payload = decodeJwt(idToken);
+  state.user = { name: payload.name, email: payload.email, picture: payload.picture };
 }
 
 function attemptSilentLogin() {
@@ -116,21 +152,33 @@ function decodeJwt(token) {
 }
 
 function handleCredentialResponse(response) {
-  state.idToken = response.credential;
-  const payload = decodeJwt(response.credential);
-  state.user = { name: payload.name, email: payload.email, picture: payload.picture };
-  showApp();
-  loadBootstrap();
+  const isFirstLogin = !state.idToken;
+  applyToken(response.credential);
+  saveStoredToken(response.credential);
+  if (isFirstLogin) {
+    showApp();
+    restoreDraft();
+    loadBootstrap();
+  }
 }
 
 function logout() {
   google.accounts.id.disableAutoSelect();
   state.idToken = null;
   state.user = null;
+  clearStoredToken();
   showLogin();
 }
 
-function callApi(action, payload) {
+function trySilentReauth() {
+  return new Promise(function (resolve) {
+    if (!window.google || !google.accounts || !google.accounts.id) { resolve(null); return; }
+    google.accounts.id.prompt();
+    setTimeout(function () { resolve(state.idToken); }, 600);
+  });
+}
+
+function callApi(action, payload, isRetry) {
   return fetch(CONFIG.API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -140,13 +188,22 @@ function callApi(action, payload) {
       return r.json();
     })
     .then(function (res) {
-      if (!res.ok) throw new Error(res.error || 'Er ging iets mis.');
+      if (!res.ok) {
+        const msg = String(res.error || '').toLowerCase();
+        const isAuthIssue = msg.indexOf('log opnieuw') !== -1 || msg.indexOf('inloggegevens') !== -1 || msg.indexOf('niet ingelogd') !== -1;
+        if (isAuthIssue && !isRetry) {
+          return trySilentReauth().then(function () {
+            return callApi(action, payload, true);
+          });
+        }
+        throw new Error(res.error || 'Er ging iets mis.');
+      }
       return res.data;
     });
 }
 
-function loadBootstrap() {
-  showSpinner('Gegevens ophalen...');
+function loadBootstrap(quiet) {
+  if (!quiet) showSpinner('Gegevens ophalen...');
   callApi('bootstrap')
     .then(function (data) {
       state.products = (data.products || []).map(function (p) {
@@ -165,7 +222,7 @@ function loadBootstrap() {
       toast(err.message, true);
       if (String(err.message).toLowerCase().indexOf('log opnieuw') !== -1) logout();
     })
-    .finally(hideSpinner);
+    .finally(function () { if (!quiet) hideSpinner(); });
 }
 
 function showLogin() {
@@ -279,6 +336,7 @@ function addProductToOrder(sku) {
   }
   renderSelectedItems();
   renderProductPicker(document.getElementById('product-search').value);
+  saveDraft();
 }
 
 function renderSelectedItems() {
@@ -307,6 +365,7 @@ function renderSelectedItems() {
       state.selectedItems.splice(Number(btn.dataset.idx), 1);
       renderSelectedItems();
       renderProductPicker(document.getElementById('product-search').value);
+      saveDraft();
     });
   });
 
@@ -410,6 +469,59 @@ function uploadPhotoForSku(sku, file) {
   });
 }
 
+const DRAFT_KEY = 'stb_order_draft';
+
+function saveDraft() {
+  try {
+    const draft = {
+      voornaam: document.getElementById('input-voornaam').value,
+      achternaam: document.getElementById('input-achternaam').value,
+      straat: document.getElementById('input-straat').value,
+      postcode: document.getElementById('input-postcode').value,
+      huisnummer: document.getElementById('input-huisnummer').value,
+      plaats: document.getElementById('input-plaats').value,
+      notitie: document.getElementById('input-notitie').value,
+      korting: document.getElementById('input-korting').value,
+      status: getActiveStatus(),
+      betaald: document.getElementById('toggle-betaald').checked,
+      items: state.selectedItems,
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch (err) {
+    // geen opslagruimte of privé-browsen, dan negeren we het gewoon
+  }
+}
+
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch (err) { /* niks aan te doen */ }
+}
+
+function restoreDraft() {
+  let draft;
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    draft = JSON.parse(raw);
+  } catch (err) {
+    return;
+  }
+  if (!draft || !draft.items || !draft.items.length) return;
+
+  document.getElementById('input-voornaam').value = draft.voornaam || '';
+  document.getElementById('input-achternaam').value = draft.achternaam || '';
+  document.getElementById('input-straat').value = draft.straat || '';
+  document.getElementById('input-postcode').value = draft.postcode || '';
+  document.getElementById('input-huisnummer').value = draft.huisnummer || '';
+  document.getElementById('input-plaats').value = draft.plaats || '';
+  document.getElementById('input-notitie').value = draft.notitie || '';
+  document.getElementById('input-korting').value = draft.korting || 0;
+  document.getElementById('toggle-betaald').checked = !!draft.betaald;
+  setStatusSegment(draft.status || 'Open');
+  state.selectedItems = draft.items;
+  renderSelectedItems();
+  toast('Concept-order hersteld, je was onderbroken maar niks is kwijt.');
+}
+
 function resetOrderForm() {
   document.getElementById('form-new-order').reset();
   state.selectedItems = [];
@@ -418,6 +530,7 @@ function resetOrderForm() {
   document.getElementById('toggle-betaald').checked = false;
   document.getElementById('product-search').classList.add('hidden');
   renderProductPicker('');
+  clearDraft();
 }
 
 function submitNewOrder(ev) {
@@ -451,7 +564,7 @@ function submitNewOrder(ev) {
     .then(function () {
       toast('Order opgeslagen!');
       resetOrderForm();
-      loadBootstrap();
+      loadBootstrap(true);
     })
     .catch(function (err) { toast(err.message, true); })
     .finally(hideSpinner);
@@ -756,7 +869,7 @@ function bindOrderDetailEvents(o) {
       .then(function () {
         toast('Order bijgewerkt.');
         closeOrderDetail();
-        loadBootstrap();
+        loadBootstrap(true);
       })
       .catch(function (err) { toast(err.message, true); })
       .finally(hideSpinner);
@@ -815,7 +928,7 @@ function deleteCurrentOrder() {
     .then(function () {
       toast('Order verwijderd.');
       closeOrderDetail();
-      loadBootstrap();
+      loadBootstrap(true);
     })
     .catch(function (err) { toast(err.message, true); })
     .finally(hideSpinner);
@@ -916,7 +1029,7 @@ function bindProductEditForms() {
         .then(function () {
           toast('Product opgeslagen.');
           state.editingProductSku = null;
-          loadBootstrap();
+          loadBootstrap(true);
         })
         .catch(function (err) { toast(err.message, true); })
         .finally(hideSpinner);
@@ -929,7 +1042,7 @@ function bindProductEditForms() {
         .then(function () {
           toast('Product verwijderd.');
           state.editingProductSku = null;
-          loadBootstrap();
+          loadBootstrap(true);
         })
         .catch(function (err) { toast(err.message, true); })
         .finally(hideSpinner);
@@ -963,7 +1076,7 @@ function submitNewProduct(ev) {
     .then(function () {
       toast('Product toegevoegd.');
       document.getElementById('form-new-product').reset();
-      loadBootstrap();
+      loadBootstrap(true);
     })
     .catch(function (err) { toast(err.message, true); })
     .finally(hideSpinner);
@@ -1037,6 +1150,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   document.getElementById('form-new-order').addEventListener('submit', submitNewOrder);
+  document.getElementById('form-new-order').addEventListener('input', saveDraft);
   document.getElementById('form-new-product').addEventListener('submit', submitNewProduct);
 
   document.getElementById('product-search').addEventListener('input', function (e) {
@@ -1055,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('input-huisnummer').addEventListener('blur', tryAutoFillAddress);
 
   document.querySelectorAll('#status-segmented button').forEach(function (b) {
-    b.addEventListener('click', function () { setStatusSegment(b.dataset.value); });
+    b.addEventListener('click', function () { setStatusSegment(b.dataset.value); saveDraft(); });
   });
 
   document.querySelectorAll('#order-filter-tabs button').forEach(function (b) {
@@ -1088,5 +1202,6 @@ document.addEventListener('DOMContentLoaded', function () {
       const active = document.querySelector('#status-segmented button.active');
       if (active && active.dataset.value === 'Open') setStatusSegment('Verzenden');
     }
+    saveDraft();
   });
 });
