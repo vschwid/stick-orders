@@ -591,6 +591,23 @@ input[type="number"].korting-input {
 .badge-paid-icon.is-paid { background: var(--status-betaald-bg); color: var(--status-betaald-text); }
 .badge-paid-icon.is-unpaid { background: var(--status-onbetaald-bg); color: var(--status-onbetaald-text); }
 
+.mark-paid-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--status-betaald-bg);
+  color: var(--status-betaald-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.mark-paid-btn .material-symbols-outlined { font-size: 22px; }
+.mark-paid-btn:active { background: var(--status-betaald-text); color: white; }
+
 .order-row__chevron {
   color: var(--brown-soft);
   font-size: 20px;

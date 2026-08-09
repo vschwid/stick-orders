@@ -704,6 +704,7 @@ function renderOrders() {
         '<span class="order-row__meta">' + formatDate(o.Datum) + ' &middot; ' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + '</span>' +
         '<div class="order-row__side">' +
         '<span class="badge-paid-icon ' + (o.Betaald ? 'is-paid' : 'is-unpaid') + '"><span class="material-symbols-outlined">euro</span>' + (o.Betaald ? 'Ja' : 'Nee') + '</span>' +
+        (!o.Betaald ? '<button type="button" class="mark-paid-btn" data-id="' + escapeAttr(o.OrderID) + '" aria-label="Markeer als betaald"><span class="material-symbols-outlined">paid</span></button>' : '') +
         '<span class="order-row__amount">&euro;' + Number(o.Totaal).toFixed(2) + '</span>' +
         '<span class="material-symbols-outlined order-row__chevron">chevron_right</span>' +
         '</div>' +
@@ -712,6 +713,25 @@ function renderOrders() {
       );
     })
     .join('');
+
+  list.querySelectorAll('.mark-paid-btn').forEach(function (btn) {
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      const orderId = btn.dataset.id;
+      const order = state.orders.filter(function (o) { return o.OrderID === orderId; })[0];
+      const naam = order ? (order.Voornaam + ' ' + order.Achternaam) : 'deze order';
+      if (!confirm('Order van ' + naam + ' als betaald markeren?')) return;
+
+      showSpinner('Bijwerken...');
+      callApi('updateOrder', { orderId: orderId, Betaald: true })
+        .then(function () {
+          toast('Order gemarkeerd als betaald.');
+          loadBootstrap(true);
+        })
+        .catch(function (err) { toast(err.message, true); })
+        .finally(hideSpinner);
+    });
+  });
 
   list.querySelectorAll('.order-row').forEach(function (row) {
     row.addEventListener('click', function () {
