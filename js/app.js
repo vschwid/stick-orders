@@ -440,11 +440,7 @@ function isValidPostcode(pc) {
   return /^[0-9]{4}[A-Z]{2}$/.test(normalizePostcode(pc));
 }
 
-function tryAutoFillAddress() {
-  const pc = normalizePostcode(document.getElementById('input-postcode').value);
-  const huisnr = document.getElementById('input-huisnummer').value.trim();
-  if (!isValidPostcode(pc) || !huisnr) return;
-
+function fetchAddress(pc, huisnr) {
   const params = new URLSearchParams();
   params.append('fq', 'postcode:' + pc);
   params.append('fq', 'huisnummer:' + huisnr);
@@ -452,8 +448,25 @@ function tryAutoFillAddress() {
   params.append('fl', 'straatnaam,woonplaatsnaam');
   params.append('rows', '1');
 
-  fetch('https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?' + params.toString())
-    .then(function (r) { return r.json(); })
+  return fetch('https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?' + params.toString())
+    .then(function (r) {
+      if (!r.ok) throw new Error('pdok-http-' + r.status);
+      return r.json();
+    });
+}
+
+function tryAutoFillAddress() {
+  const pc = normalizePostcode(document.getElementById('input-postcode').value);
+  const huisnr = document.getElementById('input-huisnummer').value.trim();
+  if (!isValidPostcode(pc) || !huisnr) return;
+
+  fetchAddress(pc, huisnr)
+    .catch(function () {
+      // eerste poging mislukt, waarschijnlijk een tijdelijke hapering bij PDOK: kort opnieuw proberen
+      return new Promise(function (resolve) { setTimeout(resolve, 800); }).then(function () {
+        return fetchAddress(pc, huisnr);
+      });
+    })
     .then(function (data) {
       const doc = data.response && data.response.docs && data.response.docs[0];
       if (!doc) {
@@ -464,7 +477,7 @@ function tryAutoFillAddress() {
       document.getElementById('input-plaats').value = doc.woonplaatsnaam;
     })
     .catch(function () {
-      // stil falen: adres blijft gewoon handmatig invulbaar
+      toast('Adres opzoeken lukt nu niet (storing bij PDOK), vul handmatig in.', true);
     });
 }
 
