@@ -155,12 +155,28 @@
       <div id="dashboard-content"></div>
     </section>
 
+    <section id="view-inkoop" class="view">
+      <div class="card">
+        <h2>Nieuwe inkoop</h2>
+        <form id="form-new-inkoop">
+          <label for="inkoop-naam">Naam</label>
+          <input id="inkoop-naam" type="text" placeholder="bv. Stof, verzendkosten" required>
+          <label for="inkoop-bedrag">Bedrag (&euro;)</label>
+          <input id="inkoop-bedrag" type="number" step="0.01" min="0" value="0">
+          <button type="submit" class="btn btn-secondary" style="margin-top:14px;">Inkoop toevoegen</button>
+        </form>
+      </div>
+      <h2 style="margin: 18px 4px 10px;">Alle inkoop</h2>
+      <div id="inkoop-list" class="order-list"></div>
+    </section>
+
   </main>
 
   <nav class="bottom-nav">
     <button data-view="new-order" class="active"><span class="material-symbols-outlined icon">add</span>Nieuw</button>
     <button data-view="orders"><span class="material-symbols-outlined icon">receipt_long</span>Orders</button>
     <button data-view="products"><span class="material-symbols-outlined icon">sell</span>Producten</button>
+    <button data-view="inkoop"><span class="material-symbols-outlined icon">shopping_bag</span>Inkoop</button>
     <button data-view="dashboard"><span class="material-symbols-outlined icon">bar_chart</span>Dashboard</button>
   </nav>
 

@@ -733,12 +733,14 @@ input[type="number"].korting-input {
   justify-content: center;
   gap: 3px;
   color: var(--brown);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 600;
   cursor: pointer;
+  padding: 0 2px;
+  white-space: nowrap;
 }
 
-.bottom-nav button .icon { font-size: 1.25rem; }
+.bottom-nav button .icon { font-size: 1.15rem; }
 .bottom-nav button.active { color: var(--rust-dark); }
 
 #login-view {

@@ -4,6 +4,7 @@ const state = {
   products: [],
   orders: [],
   items: [],
+  inkoop: [],
   dashboard: null,
   selectedItems: [],
   editItems: [],
@@ -126,11 +127,15 @@ function silentSync() {
       state.items = (data.items || []).map(function (it) {
         return Object.assign({}, it, { OrderID: String(it.OrderID), SKU: String(it.SKU) });
       });
+      state.inkoop = (data.inkoop || []).map(function (i) {
+        return Object.assign({}, i, { InkoopID: String(i.InkoopID) });
+      });
       state.dashboard = data.dashboard || null;
 
       const active = document.querySelector('.view.active');
       const activeId = active ? active.id : '';
       if (activeId === 'view-orders') renderOrders();
+      if (activeId === 'view-inkoop') renderInkoop();
       if (activeId === 'view-dashboard') renderDashboard();
     })
     .catch(function () {
@@ -215,6 +220,9 @@ function loadBootstrap(quiet) {
       state.items = (data.items || []).map(function (it) {
         return Object.assign({}, it, { OrderID: String(it.OrderID), SKU: String(it.SKU) });
       });
+      state.inkoop = (data.inkoop || []).map(function (i) {
+        return Object.assign({}, i, { InkoopID: String(i.InkoopID) });
+      });
       state.dashboard = data.dashboard || null;
       renderAll();
     })
@@ -252,6 +260,7 @@ function renderView(name) {
   window.scrollTo(0, 0);
   if (name === 'orders') renderOrders();
   if (name === 'products') renderProducts();
+  if (name === 'inkoop') renderInkoop();
   if (name === 'dashboard') renderDashboard();
   if (name === 'order-detail') renderOrderDetailPage();
 }
@@ -289,7 +298,7 @@ function handleHashChange() {
     openOrderDetailByHash(hash.slice('order/'.length));
     return;
   }
-  const known = ['new-order', 'orders', 'products', 'dashboard'];
+  const known = ['new-order', 'orders', 'products', 'inkoop', 'dashboard'];
   renderView(known.indexOf(hash) !== -1 ? hash : 'new-order');
 }
 
@@ -298,6 +307,7 @@ function renderAll() {
   renderSelectedItems();
   renderOrders();
   renderProducts();
+  renderInkoop();
   renderDashboard();
 }
 
@@ -1149,6 +1159,129 @@ function submitNewProduct(ev) {
     .finally(hideSpinner);
 }
 
+function renderInkoop() {
+  const list = document.getElementById('inkoop-list');
+  if (!list) return;
+
+  if (!state.inkoop.length) {
+    list.innerHTML = '<div class="empty-state">Nog geen inkoop geregistreerd.</div>';
+    return;
+  }
+
+  list.innerHTML = state.inkoop
+    .map(function (i) {
+      return (
+        '<div class="order-row" data-id="' + escapeAttr(i.InkoopID) + '" style="cursor:default;">' +
+        '<div class="order-row__name">' + escapeHtml(i.Naam) + '</div>' +
+        '<div class="order-row__bottom">' +
+        '<span class="order-row__meta">' + formatDate(i.Datum) + '</span>' +
+        '<div class="order-row__side">' +
+        '<span class="order-row__amount">&euro;' + Number(i.Bedrag).toFixed(2) + '</span>' +
+        '<button type="button" class="remove delete-inkoop-btn" data-id="' + escapeAttr(i.InkoopID) + '"><span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>' +
+        '</div>' +
+        '</div>' +
+        '</div>'
+      );
+    })
+    .join('');
+
+  list.querySelectorAll('.delete-inkoop-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const inkoopId = btn.dataset.id;
+      const item = state.inkoop.filter(function (i) { return i.InkoopID === inkoopId; })[0];
+      const naam = item ? item.Naam : 'dit item';
+      if (!confirm('Inkoop "' + naam + '" verwijderen?')) return;
+
+      showSpinner('Verwijderen...');
+      callApi('deleteInkoop', { inkoopId: inkoopId })
+        .then(function () {
+          toast('Inkoop verwijderd.');
+          loadBootstrap(true);
+        })
+        .catch(function (err) { toast(err.message, true); })
+        .finally(hideSpinner);
+    });
+  });
+}
+
+function submitNewInkoop(ev) {
+  ev.preventDefault();
+  const naam = document.getElementById('inkoop-naam').value.trim();
+  const bedrag = Number(document.getElementById('inkoop-bedrag').value) || 0;
+
+  if (!naam) {
+    toast('Vul een naam in voor deze inkoop.', true);
+    return;
+  }
+
+  showSpinner('Inkoop opslaan...');
+  callApi('createInkoop', { naam: naam, bedrag: bedrag })
+    .then(function () {
+      toast('Inkoop opgeslagen.');
+      document.getElementById('form-new-inkoop').reset();
+      loadBootstrap(true);
+    })
+    .catch(function (err) { toast(err.message, true); })
+    .finally(hideSpinner);
+}
+
+function buildWeeklyBarChartSvg(weekly) {
+  const w = 320;
+  const h = 150;
+  const chartLeft = 40;
+  const chartRight = w - 10;
+  const chartTop = 16;
+  const chartBottom = h - 26;
+  const chartWidth = chartRight - chartLeft;
+  const chartHeight = chartBottom - chartTop;
+
+  const max = weekly.reduce(function (m, x) { return Math.max(m, x.total); }, 0);
+  const safeMax = max > 0 ? max : 1;
+  const n = weekly.length || 1;
+  const slot = chartWidth / n;
+  const barWidth = Math.max(slot * 0.5, 8);
+
+  let bars = '';
+  weekly.forEach(function (wk, i) {
+    const val = Math.max(wk.total, 0);
+    const barH = (val / safeMax) * chartHeight;
+    const x = chartLeft + i * slot + (slot - barWidth) / 2;
+    const y = chartBottom - barH;
+    bars +=
+      '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + barWidth.toFixed(1) +
+      '" height="' + Math.max(barH, 1).toFixed(1) + '" rx="4" fill="var(--rust)"></rect>' +
+      '<text x="' + (x + barWidth / 2).toFixed(1) + '" y="' + (chartBottom + 15) +
+      '" text-anchor="middle" font-size="9" fill="var(--brown)">' + escapeHtml(wk.label.replace('Wk ', '')) + '</text>';
+  });
+
+  const gridTop = '<line x1="' + chartLeft + '" y1="' + chartTop + '" x2="' + chartRight + '" y2="' + chartTop + '" stroke="var(--line)" stroke-dasharray="3,3"></line>';
+  const gridMid = '<line x1="' + chartLeft + '" y1="' + (chartTop + chartHeight / 2) + '" x2="' + chartRight + '" y2="' + (chartTop + chartHeight / 2) + '" stroke="var(--line)" stroke-dasharray="3,3"></line>';
+  const labelTop = '<text x="2" y="' + (chartTop + 4) + '" font-size="9" fill="var(--brown)">\u20ac' + Math.round(safeMax) + '</text>';
+  const labelMid = '<text x="2" y="' + (chartTop + chartHeight / 2 + 4) + '" font-size="9" fill="var(--brown)">\u20ac' + Math.round(safeMax / 2) + '</text>';
+
+  return (
+    '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:150px;display:block;">' +
+    gridTop + gridMid + labelTop + labelMid + bars +
+    '</svg>'
+  );
+}
+
+function animateNumber(el, target, prefix) {
+  if (!el) return;
+  const duration = 900;
+  const startTime = performance.now();
+  const startVal = 0;
+  function step(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const value = startVal + (target - startVal) * eased;
+    el.textContent = (prefix || '') + Math.round(value);
+    if (progress < 1) requestAnimationFrame(step);
+    else el.textContent = (prefix || '') + Math.round(target);
+  }
+  requestAnimationFrame(step);
+}
+
 function renderDashboard() {
   const d = state.dashboard;
   const wrap = document.getElementById('dashboard-content');
@@ -1160,7 +1293,13 @@ function renderDashboard() {
   const bestsellersHtml = d.bestsellers.length
     ? d.bestsellers
         .map(function (b, i) {
-          return '<div class="bestseller-row"><span><span class="bestseller-rank">' + (i + 1) + '.</span>' + escapeHtml(b.naam) + '</span><span>' + b.aantal + ' verkocht</span></div>';
+          return (
+            '<div class="bestseller-row">' +
+            '<span><span class="bestseller-rank">' + (i + 1) + '.</span>' + escapeHtml(b.naam) +
+            ' <small style="color:var(--brown-soft);">(' + escapeHtml(b.categorie) + ')</small></span>' +
+            '<span>' + b.aantal + '&times; &middot; &euro;' + b.omzet.toFixed(2) + '</span>' +
+            '</div>'
+          );
         })
         .join('')
     : '<div class="empty-state">Nog geen verkopen.</div>';
@@ -1169,20 +1308,44 @@ function renderDashboard() {
     ? d.lowStock.map(function (p) { return '<div class="bestseller-row"><span>' + escapeHtml(p.naam) + '</span><span class="stock-low">nog ' + p.voorraad + '</span></div>'; }).join('')
     : '<div class="empty-state">Alle voorraad op peil.</div>';
 
+  const categoryRowsHtml = d.categoryBreakdown.length
+    ? d.categoryBreakdown.map(function (c) {
+        return '<div class="bestseller-row"><span>' + escapeHtml(c.categorie) + '</span><span class="cat-value" data-target="' + c.omzet.toFixed(2) + '">&euro;0</span></div>';
+      }).join('')
+    : '<div class="empty-state">Nog geen verkopen.</div>';
+
   const dupWarning = (d.duplicateSkus && d.duplicateSkus.length)
     ? '<div class="card" style="border-color:var(--rust-dark);"><h3 style="color:var(--rust-dark);">Let op: dubbele SKU\'s</h3><p>Deze SKU-waarden komen meerdere keren voor in je Producten-tabblad: <strong>' + d.duplicateSkus.map(escapeHtml).join(', ') + '</strong>. Producten met dezelfde SKU worden door het systeem als \u00e9\u00e9n product behandeld. Maak elke SKU uniek.</p></div>'
     : '';
 
   wrap.innerHTML =
     dupWarning +
+    '<div class="card"><h3>Omzet per week</h3>' + buildWeeklyBarChartSvg(d.weeklyRevenue) + '</div>' +
     '<div class="stat-grid">' +
-    '<div class="stat-card"><div class="value">&euro;' + d.omzetTotaal.toFixed(0) + '</div><div class="label">Omzet totaal</div></div>' +
-    '<div class="stat-card"><div class="value">&euro;' + d.omzetMaand.toFixed(0) + '</div><div class="label">Omzet deze maand</div></div>' +
-    '<div class="stat-card"><div class="value">' + d.ordersMaand + '</div><div class="label">Orders deze maand</div></div>' +
-    '<div class="stat-card"><div class="value">' + (d.statusCount['Verzenden'] || 0) + '</div><div class="label">Te verzenden</div></div>' +
+    '<div class="stat-card"><div class="value" id="stat-omzet-totaal">&euro;0</div><div class="label">Omzet totaal</div></div>' +
+    '<div class="stat-card"><div class="value" id="stat-omzet-maand">&euro;0</div><div class="label">Omzet deze maand</div></div>' +
+    '<div class="stat-card"><div class="value" id="stat-winst-totaal">&euro;0</div><div class="label">Winst totaal</div></div>' +
+    '<div class="stat-card"><div class="value" id="stat-winst-maand">&euro;0</div><div class="label">Winst deze maand</div></div>' +
+    '<div class="stat-card"><div class="value" id="stat-orders-maand">0</div><div class="label">Orders deze maand</div></div>' +
+    '<div class="stat-card"><div class="value" id="stat-te-verzenden">0</div><div class="label">Te verzenden</div></div>' +
     '</div>' +
-    '<div class="card"><h3>Bestsellers</h3>' + bestsellersHtml + '</div>' +
+    '<div class="card"><h3>Omzet per categorie</h3>' +
+    '<div class="bestseller-row" style="font-weight:700;"><span>Totaal</span><span id="stat-omzet-categorie-totaal">&euro;0</span></div>' +
+    categoryRowsHtml +
+    '</div>' +
+    '<div class="card"><h3>Bestsellers (top 10)</h3>' + bestsellersHtml + '</div>' +
     '<div class="card"><h3>Voorraad bijna op</h3>' + lowStockHtml + '</div>';
+
+  animateNumber(document.getElementById('stat-omzet-totaal'), d.omzetTotaal, '\u20ac');
+  animateNumber(document.getElementById('stat-omzet-maand'), d.omzetMaand, '\u20ac');
+  animateNumber(document.getElementById('stat-winst-totaal'), d.winstTotaal, '\u20ac');
+  animateNumber(document.getElementById('stat-winst-maand'), d.winstMaand, '\u20ac');
+  animateNumber(document.getElementById('stat-orders-maand'), d.ordersMaand, '');
+  animateNumber(document.getElementById('stat-te-verzenden'), d.statusCount['Verzenden'] || 0, '');
+  animateNumber(document.getElementById('stat-omzet-categorie-totaal'), d.categoryBreakdown.reduce(function (s, c) { return s + c.omzet; }, 0), '\u20ac');
+  document.querySelectorAll('.cat-value').forEach(function (el) {
+    animateNumber(el, Number(el.dataset.target), '\u20ac');
+  });
 }
 
 function escapeHtml(str) {
@@ -1221,6 +1384,7 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('form-new-order').addEventListener('submit', submitNewOrder);
   document.getElementById('form-new-order').addEventListener('input', saveDraft);
   document.getElementById('form-new-product').addEventListener('submit', submitNewProduct);
+  document.getElementById('form-new-inkoop').addEventListener('submit', submitNewInkoop);
 
   document.getElementById('product-search').addEventListener('input', function (e) {
     renderProductPicker(e.target.value);
