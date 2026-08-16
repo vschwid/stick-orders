@@ -451,6 +451,16 @@ input[type="number"].korting-input {
 .selected-item .price { width: 64px; text-align: right; font-size: 0.85rem; color: var(--brown); }
 .selected-item .remove { background: none; border: none; color: var(--rust-dark); font-size: 1.1rem; cursor: pointer; padding: 4px 6px; }
 
+.delete-inkoop-btn {
+  background: none;
+  border: none;
+  color: var(--rust-dark);
+  cursor: pointer;
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+}
+
 .total-row {
   display: flex;
   justify-content: space-between;
@@ -592,8 +602,8 @@ input[type="number"].korting-input {
 .badge-paid-icon.is-unpaid { background: var(--status-onbetaald-bg); color: var(--status-onbetaald-text); }
 
 .mark-paid-btn {
-  width: 40px;
-  height: 40px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: none;
   background: var(--status-betaald-bg);
@@ -605,7 +615,7 @@ input[type="number"].korting-input {
   padding: 0;
 }
 
-.mark-paid-btn .material-symbols-outlined { font-size: 22px; }
+.mark-paid-btn .material-symbols-outlined { font-size: 15px; }
 .mark-paid-btn:active { background: var(--status-betaald-text); color: white; }
 
 .order-row__chevron {
@@ -806,4 +816,167 @@ input[type="number"].korting-input {
   line-height: 1;
   vertical-align: middle;
   display: inline-block;
+}
+
+/* ============================================================
+   Desktop-laag (vanaf 900px breed). Alles hierboven (mobile)
+   blijft volledig ongewijzigd, dit is puur een aanvullende laag
+   die alleen op grotere schermen actief wordt.
+   ============================================================ */
+@media (min-width: 900px) {
+
+  #app-shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: 100vh;
+  }
+
+  .app-header {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding: 24px 40px 28px;
+  }
+
+  .bottom-nav {
+    position: static;
+    grid-column: 1;
+    grid-row: 2;
+    width: auto;
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 16px 0;
+    border-top: none;
+    border-right: 1px solid var(--line);
+    gap: 4px;
+  }
+
+  .bottom-nav button {
+    flex: 0 0 40px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 24px;
+    font-size: 0.85rem;
+    border-radius: 0;
+  }
+
+  .bottom-nav button .icon { font-size: 1.2rem; }
+
+  .bottom-nav button.active {
+    background: var(--ochre-soft);
+    color: var(--rust-dark);
+  }
+
+  main {
+    grid-column: 2;
+    grid-row: 2;
+    max-width: 1040px;
+    padding: 32px 40px 60px;
+  }
+
+  .toast {
+    left: calc(50% + 110px);
+    bottom: 24px;
+  }
+
+  /* Nieuwe order: 2 kolommen. Links klantgegevens + producten,
+     rechts status en de opslaan-knop, altijd in beeld. */
+  #form-new-order {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  #form-new-order .card:nth-of-type(1) { grid-column: 1; grid-row: 1; }
+  #form-new-order .card:nth-of-type(2) { grid-column: 1; grid-row: 2; }
+  #form-new-order .card:nth-of-type(3) { grid-column: 2; grid-row: 1; }
+  #form-new-order > button[type="submit"] { grid-column: 2; grid-row: 2; align-self: start; }
+
+  /* Order detail: zelfde soort 2-koloms opzet */
+  #order-detail-content {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  #order-detail-content .card:nth-of-type(1) { grid-column: 1 / -1; grid-row: 1; }
+  #order-detail-content .card:nth-of-type(2) { grid-column: 1; grid-row: 2; }
+  #order-detail-content .card:nth-of-type(3) { grid-column: 1; grid-row: 3; }
+  #order-detail-content .card:nth-of-type(4) { grid-column: 2; grid-row: 2; }
+  #order-detail-content #order-detail-save { grid-column: 2; grid-row: 3; align-self: start; }
+
+  /* Orders: compactere rijen, alles op 1 regel zodat je er meer ziet */
+  .order-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .order-row__name {
+    width: 200px;
+    flex-shrink: 0;
+  }
+
+  .order-row__bottom {
+    flex: 1;
+  }
+
+  .order-row__meta {
+    flex: 0 0 auto;
+    min-width: 100px;
+  }
+
+  /* Producten grid: iets ruimer, meer tegels naast elkaar, minder scrollen */
+  .product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    max-height: 460px;
+  }
+
+  /* Dashboard: 2 kolommen, met de weekomzet-grafiek en stat-grid over de volle breedte */
+  #dashboard-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  #dashboard-content .card--wide {
+    grid-column: 1 / -1;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  /* Producten en Inkoop: formulier links, lijst rechts */
+  #view-products.active,
+  #view-inkoop.active {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  #view-products.active > .card,
+  #view-inkoop.active > .card {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  #view-products.active > h2,
+  #view-inkoop.active > h2 {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  #view-products.active > #products-list,
+  #view-inkoop.active > #inkoop-list {
+    grid-column: 2;
+    grid-row: 2;
+  }
 }

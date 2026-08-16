@@ -726,7 +726,6 @@ function renderOrders() {
         '<div class="order-row__bottom">' +
         '<span class="order-row__meta">' + formatDate(o.Datum) + ' &middot; ' + itemCount + ' item' + (itemCount === 1 ? '' : 's') + '</span>' +
         '<div class="order-row__side">' +
-        '<span class="badge-paid-icon ' + (o.Betaald ? 'is-paid' : 'is-unpaid') + '"><span class="material-symbols-outlined">euro</span>' + (o.Betaald ? 'Ja' : 'Nee') + '</span>' +
         (!o.Betaald ? '<button type="button" class="mark-paid-btn" data-id="' + escapeAttr(o.OrderID) + '" aria-label="Markeer als betaald"><span class="material-symbols-outlined">paid</span></button>' : '') +
         '<span class="order-row__amount">&euro;' + Number(o.Totaal).toFixed(2) + '</span>' +
         '<span class="material-symbols-outlined order-row__chevron">chevron_right</span>' +
@@ -1320,8 +1319,8 @@ function renderDashboard() {
 
   wrap.innerHTML =
     dupWarning +
-    '<div class="card"><h3>Omzet per week</h3>' + buildWeeklyBarChartSvg(d.weeklyRevenue) + '</div>' +
-    '<div class="stat-grid">' +
+    '<div class="card card--wide"><h3>Omzet per week</h3>' + buildWeeklyBarChartSvg(d.weeklyRevenue) + '</div>' +
+    '<div class="stat-grid card--wide">' +
     '<div class="stat-card"><div class="value" id="stat-omzet-totaal">&euro;0</div><div class="label">Omzet totaal</div></div>' +
     '<div class="stat-card"><div class="value" id="stat-omzet-maand">&euro;0</div><div class="label">Omzet deze maand</div></div>' +
     '<div class="stat-card"><div class="value" id="stat-winst-totaal">&euro;0</div><div class="label">Winst totaal</div></div>' +
